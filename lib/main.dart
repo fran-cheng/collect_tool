@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -11,7 +13,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Collect Tool',
       theme: ThemeData(
         // This is the theme of your application.
         //
@@ -30,7 +32,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const MyHomePage(title: 'Home Page'),
     );
   }
 }
@@ -54,17 +56,142 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+  //		1D3A2E29141080
+  // 前缀
+  String preStr = "1D";
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  // 后缀
+  String endStr = "29131080";
+
+  //		1D46B129131080
+  int nfc_number = 0x46B1;
+  late String nfcStr = nfc_number.toRadixString(16);
+
+  // 分割保存的间隔
+  int splitNumber = 1000;
+
+  // 3. 修改功能：弹出输入框修改appName
+  void editDate(
+    String tag,
+    dynamic arg,
+    Function(dynamic) onChanged,
+    bool isHex,
+  ) {
+    // 定义输入控制器，默认填充当前appName
+    String inputText = arg.toString();
+    final TextEditingController controller = TextEditingController(
+      text: inputText,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("修改$tag"),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          // 自动聚焦
+          inputFormatters: arg is int
+              ? [FilteringTextInputFormatter.digitsOnly] // 仅数字输入
+              : null,
+          decoration: InputDecoration(
+            hintText: "请输入新的$tag",
+            border: OutlineInputBorder(),
+          ),
+          // 可选：限制输入长度
+          maxLength: 50,
+        ),
+        actions: [
+          // 取消按钮
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("取消"),
+          ),
+          // 确认按钮
+          TextButton(
+            onPressed: () {
+              final String newArg = controller.text.trim();
+              if (newArg.isEmpty) {
+                showSnackBar("$tag不能为空", isError: true);
+                return;
+              }
+              if(newArg.length!=4){
+                showSnackBar("$tag只能是4个", isError: true);
+                return;
+              }
+              if (isHex) {
+                if (!isHexString(newArg)) {
+                  showSnackBar("$tag 得是16进制格式", isError: true);
+                  return;
+                }
+              }
+              // 更新状态变量（刷新UI）
+              setState(() {
+                if (arg is int) {
+                  // 校验是否为合法数字
+                  final int? numValue = int.tryParse(newArg);
+                  arg = numValue;
+                } else {
+                  arg = newArg;
+                }
+                onChanged(arg);
+              });
+              Navigator.pop(context); // 关闭对话框
+              showSnackBar("修改成功：$newArg");
+            },
+            child: const Text("确认"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void showSnackBar(String message, {bool isError = false}) {
+    if (!context.mounted) return; // 避免上下文销毁报错
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.orange,
+        duration: const Duration(seconds: 2),
+        // 桌面端优化：悬浮显示，避免被遮挡
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Widget buildEditText(
+    String tag,
+    dynamic arg,
+    Function(dynamic) onChanged, {
+    bool canClick = true, bool isHex = false,
+  }) {
+    return InkWell(
+      onTap: canClick ? () => editDate(tag, arg, onChanged, isHex) : null,
+      // 点击修改
+      onLongPress: () => copyDate(arg.toString()),
+      // 长按复制
+      // 点击波纹效果（提升体验）
+      splashColor: Colors.blue.withOpacity(0.2),
+      borderRadius: BorderRadius.circular(4),
+      child: Text("$tag：$arg"),
+    );
+  }
+
+  bool isHexString(String str) {
+    // 正则匹配：仅包含 0-9、a-f、A-F，且非空
+    final hexRegex = RegExp(r'^[0-9a-fA-F]+$');
+    return hexRegex.hasMatch(str);
+  }
+
+  Future<void> copyDate(String arg) async {
+    if (arg.isEmpty) {
+      showSnackBar("参数为空，无法复制", isError: true);
+      return;
+    }
+    // 写入剪贴板
+    await Clipboard.setData(ClipboardData(text: arg));
+    showSnackBar("已复制：$arg");
   }
 
   @override
@@ -85,37 +212,74 @@ class _MyHomePageState extends State<MyHomePage> {
         // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: Column(
+        // alignment: Alignment.center,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              // 边框配置（颜色+宽度+样式）
+              border: Border.all(
+                color: Colors.blue, // 边框颜色（必填）
+                width: 2, // 边框宽度（默认1.0，可选）
+                style: BorderStyle
+                    .solid, // 边框样式：solid(实线，默认)/dashed(虚线)/dotted(点线)
+              ),
+              // 可选：容器背景色（注意：不能同时用Container的color属性，否则冲突）
+              // color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(16), // 圆角半径（单位dp，值越大越圆）
             ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 10,
+                  children: [
+                    buildEditText("前缀", preStr, (value) => preStr = value),
+                    buildEditText(
+                      "中间",
+                      nfcStr,
+                      (value) => {
+                        nfcStr = value
+                      },
+                      isHex: true
+                    ),
+                    buildEditText("后缀", endStr, (value) => endStr = value),
+                  ],
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  spacing: 10,
+                  children: [Text("当前是: " + preStr + nfcStr + endStr)],
+                ),
+              ],
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              // 边框配置（颜色+宽度+样式）
+              border: Border.all(
+                color: Colors.blue, // 边框颜色（必填）
+                width: 2, // 边框宽度（默认1.0，可选）
+                style: BorderStyle
+                    .solid, // 边框样式：solid(实线，默认)/dashed(虚线)/dotted(点线)
+              ),
+              // 可选：容器背景色（注意：不能同时用Container的color属性，否则冲突）
+              // color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(16), // 圆角半径（单位dp，值越大越圆）
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(children: [
+
+
+            ]),
+          ),
+        ],
       ),
     );
   }
