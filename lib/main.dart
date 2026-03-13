@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,6 +62,7 @@ class _MyHomePageState extends State<MyHomePage> {
   //		1D3A2E29141080
   // 前缀
   String preStr = "1D";
+  bool _isLoading = false;
 
   // 后缀
   String endStr = "29131080";
@@ -69,6 +73,48 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // 分割保存的间隔
   int splitNumber = 1000;
+
+  Future<void> checkNfcNumber(String realNumber) async {
+    if (_isLoading) {
+      showSnackBar("正在检查请稍等");
+      return;
+    }
+    if (realNumber.isEmpty) {
+      showSnackBar("参数不合法", isError: true);
+      return;
+    }
+    _isLoading = true;
+    // 执行网络请求
+    String url =
+        "https://gc-eoca.essilorchina.com/masterdata/orders?nfc_code=${realNumber}&application=nfc_code";
+    try {
+      // 发送 GET 请求
+      // http.Response getResponse = await http.get(
+      //   Uri.parse(url), // Dart 中 URL 需转为 Uri 对象
+      //   headers: { // 请求头（类似 OkHttp 的 Headers）
+      //     // "Content-Type": "application/json",
+      //     "user-agent":"Mozilla/5.0 (iPhone; CPU iPhone OS 6_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/6.0 Mobile/10A5376e Safari/8536.25"
+      //   },
+      // );
+      await Future.delayed(Duration(seconds: 2));
+      http.Response getResponse = new http.Response("body", 1);
+      // 处理响应
+      if (getResponse.statusCode == 200) {
+        // 解析 JSON 响应体
+        Map<String, dynamic> data = json.decode(getResponse.body);
+        print("GET 请求成功：$data");
+        showSnackBar("请求成功，是有效的");
+      } else {
+        print("GET 请求失败，状态码：${getResponse.statusCode}");
+        showSnackBar("失败了,无效的", isError: true);
+      }
+    } catch (e) {
+      // 捕获网络异常（超时、无网络等）
+      print("网络请求异常：$e");
+      showSnackBar("失败了", isError: true);
+    }
+    _isLoading = false;
+  }
 
   // 3. 修改功能：弹出输入框修改appName
   void editDate(
@@ -115,7 +161,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 showSnackBar("$tag不能为空", isError: true);
                 return;
               }
-              if(newArg.length!=4){
+              if (newArg.length != 4) {
                 showSnackBar("$tag只能是4个", isError: true);
                 return;
               }
@@ -164,7 +210,8 @@ class _MyHomePageState extends State<MyHomePage> {
     String tag,
     dynamic arg,
     Function(dynamic) onChanged, {
-    bool canClick = true, bool isHex = false,
+    bool canClick = true,
+    bool isHex = false,
   }) {
     return InkWell(
       onTap: canClick ? () => editDate(tag, arg, onChanged, isHex) : null,
@@ -242,10 +289,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     buildEditText(
                       "中间",
                       nfcStr,
-                      (value) => {
-                        nfcStr = value
-                      },
-                      isHex: true
+                      (value) => {nfcStr = value},
+                      isHex: true,
                     ),
                     buildEditText("后缀", endStr, (value) => endStr = value),
                   ],
@@ -274,10 +319,14 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            child: Column(children: [
-
-
-            ]),
+            child: Column(
+              children: [
+                ElevatedButton(
+                  onPressed: () => checkNfcNumber(preStr + nfcStr + endStr),
+                  child: Text("检查当前是否有效"),
+                ),
+              ],
+            ),
           ),
         ],
       ),
