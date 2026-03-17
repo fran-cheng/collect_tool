@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -389,6 +390,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> startRequest() async {
+    final String firstStr = nfcStr;
     if (isStart) {
       isStart = false;
       showSnackBar("正在停止");
@@ -428,15 +430,21 @@ class _MyHomePageState extends State<MyHomePage> {
         await Future.delayed(Duration(seconds: mixSleepTime));
         nfc_number--;
         setState(() {});
-        if (!isStart || true) {
+        if (!isStart || currentNumber > 10) {
           break;
+        }else if(currentNumber % splitNumber == 0){
+          String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
+          addNewText("保存: $fileName");
+          saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
         }
       }
       if (currentNumber == maxRequestNumber) {
         showSnackBar("已完成");
       }
     }
-
+    String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
+    addNewText("保存: $fileName");
+    saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
     setState(() {});
   }
 
@@ -529,6 +537,219 @@ class _MyHomePageState extends State<MyHomePage> {
         margin: const EdgeInsets.all(16),
       ),
     );
+  }
+
+  Future<String?> saveDtoToExcel(
+    List<JsonParseExcelDTO> dtoListLift,
+    List<JsonParseExcelDTO> dtoListRight,
+    String saveDir,
+    String fileName,
+  ) async {
+    try {
+      // 1. 创建 Excel 实例
+      final Excel excel = Excel.createExcel();
+
+      Map<String, List<JsonParseExcelDTO>> liftMap = processDataList(
+        dtoListLift,
+      );
+      Map<String, List<JsonParseExcelDTO>> rightMap = processDataList(
+        dtoListRight,
+      );
+
+      for (String name in liftMap.keys) {
+        List<JsonParseExcelDTO>? dtoList = liftMap[name];
+        if (dtoList != null) {
+          String tableName = "左眼${name}";
+          saveTable(excel, tableName, dtoList);
+        }
+      }
+      for (String name in rightMap.keys) {
+        List<JsonParseExcelDTO>? dtoList = liftMap[name];
+        if (dtoList != null) {
+          String tableName = "右眼${name}";
+          saveTable(excel, tableName, dtoList);
+        }
+      }
+
+      // 5. 获取本地存储路径（跨平台适配）
+      String savePath = path.join(saveDir, fileName);
+
+      // 6. 将 Excel 写入文件
+      File file = File(savePath);
+      await file.writeAsBytes(excel.save()!);
+
+      print("Excel 保存成功：$savePath");
+      return savePath;
+    } catch (e) {
+      print("Excel 保存失败：$e");
+      return null;
+    }
+  }
+
+  void saveTable(
+    Excel excel,
+    String tableName,
+    List<JsonParseExcelDTO> dtoList,
+  ) {
+    // 2. 创建工作表（名称："镜片数据"）
+    final Sheet sheet = excel[tableName];
+
+    // 3. 设置 Excel 表头（严格对齐 DTO 字段的 index）
+    final List<String> headers = [
+      '追踪码', // index0
+      '产品名', // index1
+      '球镜', // index2
+      '柱镜', // index3
+      'AXIS', // index4
+      '生产时间', // index5
+      '防伪码', // index6
+      '详情链接', // index7
+      '眼睛位置', // index8
+      '扫描次数', // index9
+      '产品编码', // index10
+    ];
+    // 将表头写入第一行（行索引 0）
+    for (int col = 0; col < headers.length; col++) {
+      sheet
+          .cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 0))
+          .value = TextCellValue(
+        headers[col],
+      );
+    }
+
+    // 4. 遍历 DTO 列表，填充数据（从第二行开始，行索引 1）
+    for (int row = 0; row < dtoList.length; row++) {
+      JsonParseExcelDTO dto = dtoList[row];
+      int excelRowIndex = row + 1; // 跳过表头行
+
+      // 按 index 填充对应列（和表头一一对应）
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: excelRowIndex),
+          )
+          .value = TextCellValue(
+        dto.trackingNo ?? "",
+      );
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: excelRowIndex),
+          )
+          .value = TextCellValue(
+        dto.productName ?? "",
+      );
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: excelRowIndex),
+          )
+          .value = TextCellValue(
+        dto.SPH ?? "",
+      );
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: excelRowIndex),
+          )
+          .value = TextCellValue(
+        dto.CYL ?? "",
+      );
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: excelRowIndex),
+          )
+          .value = TextCellValue(
+        dto.AXIS ?? "",
+      );
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: excelRowIndex),
+          )
+          .value = TextCellValue(
+        dto.invoiceDatetime ?? "",
+      );
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: excelRowIndex),
+          )
+          .value = TextCellValue(
+        dto.qrCode ?? "",
+      );
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: excelRowIndex),
+          )
+          .value = TextCellValue(
+        dto.url ?? "",
+      );
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: excelRowIndex),
+          )
+          .value = TextCellValue(
+        dto.eye ?? "",
+      );
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: excelRowIndex),
+          )
+          .value = TextCellValue(
+        dto.scanTimes ?? "",
+      );
+      sheet
+          .cell(
+            CellIndex.indexByColumnRow(
+              columnIndex: 10,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = TextCellValue(
+        dto.productCode ?? "",
+      );
+    }
+  }
+
+  Map<String, List<JsonParseExcelDTO>> processDataList(
+    List<JsonParseExcelDTO> dataList,
+  ) {
+    // Dart中初始化Map，对应Java的HashMap
+    Map<String, List<JsonParseExcelDTO>> map = {};
+
+    // 遍历数据列表（对应Java的for-each循环）
+    for (var dto in dataList) {
+      String? name = dto.productName;
+      // 空值判断（对应Java的 name!=null && !name.isEmpty()）
+      if (name != null && name.isNotEmpty) {
+        // 分组逻辑（完全对应Java的if-else逻辑）
+        if (name.contains("膜岩")) {
+          if (name.contains("2.0")) {
+            // Dart中替代Java的computeIfAbsent方法
+            _addItemToMap(map, "膜岩2.0", dto);
+          } else {
+            _addItemToMap(map, "膜岩", dto);
+          }
+        } else if (name.contains("膜洁")) {
+          _addItemToMap(map, "膜洁", dto);
+        } else if (name.contains("钻晶A4")) {
+          _addItemToMap(map, "钻晶A4", dto);
+        } else {
+          _addItemToMap(map, "其他", dto);
+        }
+      }
+    }
+    return map;
+  }
+
+  /// 辅助方法：向Map中添加元素（替代Java的computeIfAbsent）
+  /// 如果key不存在则创建空列表，然后添加元素
+  void _addItemToMap(
+    Map<String, List<JsonParseExcelDTO>> map,
+    String key,
+    JsonParseExcelDTO dto,
+  ) {
+    // 检查key是否存在，不存在则初始化空列表
+    if (!map.containsKey(key)) {
+      map[key] = [];
+    }
+    // 添加元素到对应列表
+    map[key]!.add(dto);
   }
 
   Widget buildEditText(
