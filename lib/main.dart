@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' as excelLib;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -321,6 +321,10 @@ class _MyHomePageState extends State<MyHomePage> {
             data['productNameLeft']?.toString() ?? "";
         final String productNameRight =
             data['productNameRight']?.toString() ?? "";
+        final String productCodeLeft =
+            data['productCodeLeft']?.toString() ?? "";
+        final String productCodeRight =
+            data['productCodeRight']?.toString() ?? "";
 
         // 5. 提取验光数据（球镜/柱镜/轴位）
         final String sphLeft = data['sphLeft']?.toString() ?? "";
@@ -344,6 +348,7 @@ class _MyHomePageState extends State<MyHomePage> {
         if (productNameRight.contains("星趣控")) {
           JsonParseExcelDTO dto = JsonParseExcelDTO();
           dto.scanTimes = scanTimes;
+          dto.productCode = productCodeRight;
           dto.productName = productNameRight;
           dto.trackingNo = trackingNo;
           dto.SPH = sphRight;
@@ -363,6 +368,7 @@ class _MyHomePageState extends State<MyHomePage> {
         if (productNameLeft.contains("星趣控")) {
           JsonParseExcelDTO dto = JsonParseExcelDTO();
           dto.scanTimes = scanTimes;
+          dto.productCode = productCodeLeft;
           dto.productName = productNameLeft;
           dto.trackingNo = trackingNo;
           dto.SPH = sphLeft;
@@ -431,8 +437,9 @@ class _MyHomePageState extends State<MyHomePage> {
         nfc_number--;
         setState(() {});
         if (!isStart || currentNumber > 10) {
+          isStart = false;
           break;
-        }else if(currentNumber % splitNumber == 0){
+        } else if (currentNumber != 0 && currentNumber % splitNumber == 0) {
           String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
           addNewText("保存: $fileName");
           saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
@@ -440,6 +447,8 @@ class _MyHomePageState extends State<MyHomePage> {
       }
       if (currentNumber == maxRequestNumber) {
         showSnackBar("已完成");
+        addNewText("已完成");
+        isStart = false;
       }
     }
     String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
@@ -547,8 +556,8 @@ class _MyHomePageState extends State<MyHomePage> {
   ) async {
     try {
       // 1. 创建 Excel 实例
-      final Excel excel = Excel.createExcel();
-
+      final excelLib.Excel excel = excelLib.Excel.createExcel();
+      excel.delete('Sheet1');
       Map<String, List<JsonParseExcelDTO>> liftMap = processDataList(
         dtoListLift,
       );
@@ -587,12 +596,35 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void saveTable(
-    Excel excel,
+    excelLib.Excel excel,
     String tableName,
     List<JsonParseExcelDTO> dtoList,
   ) {
+
+
+    dtoList.sort((a, b) {
+      // 辅助函数：将SPH字符串转为double，处理空值/非数字
+      double _parseSph(String? sphStr) {
+        if (sphStr == null || sphStr.isEmpty) {
+          return double.maxFinite; // 空值设为极大值，排到最后
+        }
+        try {
+          return double.parse(sphStr); // 转成数值
+        } catch (e) {
+          return double.maxFinite; // 非数字也设为极大值，排到最后
+        }
+      }
+
+      // 获取a和b的SPH数值
+      double sphA = _parseSph(a.SPH);
+      double sphB = _parseSph(b.SPH);
+
+      // 从小到大排序
+      return sphA.compareTo(sphB);
+    });
+
     // 2. 创建工作表（名称："镜片数据"）
-    final Sheet sheet = excel[tableName];
+    final excelLib.Sheet sheet = excel[tableName];
 
     // 3. 设置 Excel 表头（严格对齐 DTO 字段的 index）
     final List<String> headers = [
@@ -611,8 +643,10 @@ class _MyHomePageState extends State<MyHomePage> {
     // 将表头写入第一行（行索引 0）
     for (int col = 0; col < headers.length; col++) {
       sheet
-          .cell(CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 0))
-          .value = TextCellValue(
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 0),
+          )
+          .value = excelLib.TextCellValue(
         headers[col],
       );
     }
@@ -625,82 +659,112 @@ class _MyHomePageState extends State<MyHomePage> {
       // 按 index 填充对应列（和表头一一对应）
       sheet
           .cell(
-            CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: excelRowIndex),
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 0,
+              rowIndex: excelRowIndex,
+            ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.trackingNo ?? "",
       );
       sheet
           .cell(
-            CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: excelRowIndex),
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 1,
+              rowIndex: excelRowIndex,
+            ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.productName ?? "",
       );
       sheet
           .cell(
-            CellIndex.indexByColumnRow(columnIndex: 2, rowIndex: excelRowIndex),
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 2,
+              rowIndex: excelRowIndex,
+            ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.SPH ?? "",
       );
       sheet
           .cell(
-            CellIndex.indexByColumnRow(columnIndex: 3, rowIndex: excelRowIndex),
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 3,
+              rowIndex: excelRowIndex,
+            ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.CYL ?? "",
       );
       sheet
           .cell(
-            CellIndex.indexByColumnRow(columnIndex: 4, rowIndex: excelRowIndex),
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 4,
+              rowIndex: excelRowIndex,
+            ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.AXIS ?? "",
       );
       sheet
           .cell(
-            CellIndex.indexByColumnRow(columnIndex: 5, rowIndex: excelRowIndex),
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 5,
+              rowIndex: excelRowIndex,
+            ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.invoiceDatetime ?? "",
       );
       sheet
           .cell(
-            CellIndex.indexByColumnRow(columnIndex: 6, rowIndex: excelRowIndex),
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 6,
+              rowIndex: excelRowIndex,
+            ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.qrCode ?? "",
       );
       sheet
           .cell(
-            CellIndex.indexByColumnRow(columnIndex: 7, rowIndex: excelRowIndex),
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 7,
+              rowIndex: excelRowIndex,
+            ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.url ?? "",
       );
       sheet
           .cell(
-            CellIndex.indexByColumnRow(columnIndex: 8, rowIndex: excelRowIndex),
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 8,
+              rowIndex: excelRowIndex,
+            ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.eye ?? "",
       );
       sheet
           .cell(
-            CellIndex.indexByColumnRow(columnIndex: 9, rowIndex: excelRowIndex),
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 9,
+              rowIndex: excelRowIndex,
+            ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.scanTimes ?? "",
       );
       sheet
           .cell(
-            CellIndex.indexByColumnRow(
+            excelLib.CellIndex.indexByColumnRow(
               columnIndex: 10,
               rowIndex: excelRowIndex,
             ),
           )
-          .value = TextCellValue(
+          .value = excelLib.TextCellValue(
         dto.productCode ?? "",
       );
     }
