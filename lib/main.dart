@@ -78,10 +78,15 @@ class _MyHomePageState extends State<MyHomePage> {
   int sleepTime = 1;
 
   // 请求数量
-  int maxRequestNumber = 100;
+  int maxRequestNumber = 1000;
 
   // 保存文件目录
   String saveDirPath = "";
+
+  bool isStart = false;
+
+  //  已执行
+  int currentNumber = 0;
 
   Future<void> checkNfcNumber(String realNumber) async {
     if (_isLoading) {
@@ -123,6 +128,20 @@ class _MyHomePageState extends State<MyHomePage> {
       showSnackBar("失败了", isError: true);
     }
     _isLoading = false;
+  }
+
+  Future<void> startRequest() async {
+    if (isStart) {
+      isStart = false;
+      showSnackBar("正在停止");
+
+    }else{
+      isStart = true;
+    }
+
+    setState(() {
+
+    });
   }
 
   // 3. 修改功能：弹出输入框修改appName
@@ -352,8 +371,16 @@ class _MyHomePageState extends State<MyHomePage> {
                       sleepTime,
                       (value) => sleepTime = value,
                     ),
-                    buildEditText("数量", maxRequestNumber, (value) => maxRequestNumber = value),
-                    buildEditText("导出文件路径", saveDirPath, (value) => saveDirPath = value),
+                    buildEditText(
+                      "数量",
+                      maxRequestNumber,
+                      (value) => maxRequestNumber = value,
+                    ),
+                    buildEditText(
+                      "导出文件路径",
+                      saveDirPath,
+                      (value) => saveDirPath = value,
+                    ),
                   ],
                 ),
                 Column(
@@ -361,6 +388,45 @@ class _MyHomePageState extends State<MyHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   spacing: 10,
                   children: [Text("当前是: " + preStr + nfcStr + endStr)],
+                ),
+              ],
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              // 边框配置（颜色+宽度+样式）
+              border: Border.all(
+                color: Colors.blue, // 边框颜色（必填）
+                width: 2, // 边框宽度（默认1.0，可选）
+                style: BorderStyle
+                    .solid, // 边框样式：solid(实线，默认)/dashed(虚线)/dotted(点线)
+              ),
+              // 可选：容器背景色（注意：不能同时用Container的color属性，否则冲突）
+              // color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(16), // 圆角半径（单位dp，值越大越圆）
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 10,
+                  children: [Text("请求日志：")],
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  spacing: 10,
+                  children: [
+                    Text("当前: $currentNumber"),
+                    ElevatedButton(
+                      onPressed: () => startRequest(),
+                      child: Text(isStart ? "暂停" : "开始"),
+                    ),
+                  ],
                 ),
               ],
             ),
