@@ -11,6 +11,9 @@ void main() {
   runApp(const MyApp());
 }
 
+final List<JsonParseExcelDTO> dataList_R = []; // 右眼数据列表
+final List<JsonParseExcelDTO> dataList_L = []; // 左眼数据列表
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -61,6 +64,8 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  static final Map<String, String> mXcxData = {};
+
   //		1D3A2E29141080
   // 前缀
   String preStr = "1D";
@@ -87,14 +92,19 @@ class _MyHomePageState extends State<MyHomePage> {
 
   bool isStart = false;
 
+  // 小程序sessionId
+  String sessionId = "486754BB63A64895BF8BB4338CC2D37A";
+
   //  已执行
   int currentNumber = 0;
+
   @override
   void initState() {
     super.initState();
     // 直接调用异步方法（无需 await，不阻塞 initState 执行）
     initPath();
   }
+
   Future<void> initPath() async {
     String exeDir = path.dirname(Platform.resolvedExecutable);
 
@@ -111,7 +121,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> checkNfcNumber(String realNumber) async {
-    if (_isLoading) {
+    if (_isLoading || isStart) {
       showSnackBar("正在检查请稍等");
       return;
     }
@@ -125,15 +135,17 @@ class _MyHomePageState extends State<MyHomePage> {
         "https://gc-eoca.essilorchina.com/masterdata/orders?nfc_code=${realNumber}&application=nfc_code";
     try {
       // 发送 GET 请求
-      // http.Response getResponse = await http.get(
-      //   Uri.parse(url), // Dart 中 URL 需转为 Uri 对象
-      //   headers: { // 请求头（类似 OkHttp 的 Headers）
-      //     // "Content-Type": "application/json",
-      //     "user-agent":"Mozilla/5.0 (iPhone; CPU iPhone OS 6_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/6.0 Mobile/10A5376e Safari/8536.25"
-      //   },
-      // );
-      await Future.delayed(Duration(seconds: 2));
-      http.Response getResponse = new http.Response("body", 1);
+      http.Response getResponse = await http.get(
+        Uri.parse(url), // Dart 中 URL 需转为 Uri 对象
+        headers: {
+          // 请求头（类似 OkHttp 的 Headers）
+          // "Content-Type": "application/json",
+          "user-agent":
+              "Mozilla/5.0 (iPhone; CPU iPhone OS 6_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/6.0 Mobile/10A5376e Safari/8536.25",
+        },
+      );
+      // await Future.delayed(Duration(seconds: 2));
+      // http.Response getResponse = new http.Response("body", 1);
       // 处理响应
       if (getResponse.statusCode == 200) {
         // 解析 JSON 响应体
@@ -150,6 +162,186 @@ class _MyHomePageState extends State<MyHomePage> {
       showSnackBar("失败了", isError: true);
     }
     _isLoading = false;
+  }
+
+  Future<void> xcxProcess(String realNumber, JsonParseExcelDTO dto) async {
+    // 1. 先从缓存读取响应内容
+    String responseBody = mXcxData[realNumber] ?? "";
+
+    if (responseBody.isEmpty) {
+      // 2. 拼接目标 URL 并转换为 Uri（http 库要求 Uri 类型）
+      final String targetUrlStr =
+          "https://crmprod.essilorluxottica.com.cn/membercenter/lens/authcode?qrCode=$realNumber&type=null&authType=2&domain=null";
+      final Uri targetUrl = Uri.parse(targetUrlStr);
+      print("xcxProcess url : $targetUrlStr");
+
+      try {
+        // 3. 构建请求头（和原 Java/ Dio 版本完全一致）
+        final Map<String, String> headers = {
+          // 核心鉴权头
+          "sessionId": "${sessionId}",
+          // 模拟微信小程序环境的 User-Agent
+          "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254162e) XWEB/18163",
+          // 来源校验头
+          "Referer":
+              "https://servicewechat.com/wxa6cee9315b68fa9b/390/page-frame.html",
+          // 其他必要请求头
+          "Host": "crmprod.essilorluxottica.com.cn",
+          "Connection": "keep-alive",
+          "Content-Type": "application/json",
+          "xweb_xhr": "1",
+          "Accept": "*/*",
+          "Sec-Fetch-Site": "cross-site",
+          "Sec-Fetch-Mode": "cors",
+          "Sec-Fetch-Dest": "empty",
+          "Accept-Encoding": "gzip, deflate, br",
+          "Accept-Language": "zh-CN,zh;q=0.9",
+        };
+
+        // 4. 发送 GET 请求（http 库核心 API）
+        final http.Response response = await http.get(
+          targetUrl,
+          headers: headers,
+        );
+
+        // 5. 检查响应是否成功（状态码 200-299）
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          // 6. 读取响应内容（http 库通过 response.body 获取字符串）
+          responseBody = response.body.isNotEmpty ? response.body : "无响应内容";
+          print("响应内容：\n$responseBody");
+
+          // 7. 存入缓存
+          mXcxData[realNumber] = responseBody;
+
+          // 8. 处理响应结果
+          await xcxProcessResponseDto(realNumber, dto, responseBody);
+        } else {
+          // 非 2xx 状态码，打印错误
+          print("请求失败，状态码：${response.statusCode}");
+          final String errorBody = response.body.isNotEmpty
+              ? response.body
+              : "无错误内容";
+          print("错误响应内容：$errorBody");
+        }
+      } on SocketException catch (e) {
+        // 捕获网络连接异常（如无网络、连接超时）
+        print("网络连接异常：${e.message}");
+      } on HttpException catch (e) {
+        // 捕获 HTTP 协议异常
+        print("HTTP 协议异常：${e.message}");
+      } on FormatException catch (e) {
+        // 捕获响应格式异常（如 JSON 解析失败）
+        print("响应格式异常：${e.message}");
+      } catch (e) {
+        // 捕获其他未知异常
+        print("请求异常：$e");
+      }
+    } else {
+      // 从缓存读取数据，处理响应
+      print("读取缓存响应内容：\n$responseBody");
+      await xcxProcessResponseDto(realNumber, dto, responseBody);
+    }
+  }
+
+  xcxProcessResponseDto(
+    String trackingNo,
+    JsonParseExcelDTO dto,
+    String responseStr,
+  ) async {
+    // 防御性判断：DTO 为空或响应字符串为空，直接返回
+    if (responseStr.isEmpty) {
+      print("xcxProcessResponseDto：DTO 为空或响应字符串为空");
+      return;
+    }
+
+    try {
+      // 1. 解析 JSON 字符串为 Dart 的 Map（对应 Java 的 JsonObject）
+      final Map<String, dynamic> jsonObject = jsonDecode(responseStr);
+
+      // 2. 获取 "data" 字段（对应 Java 的 dataElement）
+      // 2. 获取 "data" 字段并判断是否为 Map 类型
+      final dynamic dataElement = jsonObject['data'];
+      if (dataElement is Map<String, dynamic>) {
+        final Map<String, dynamic> data = dataElement;
+
+        // 3. 处理日期格式化（核心：解析 invoiceDate 并重新格式化）
+        final String? invoiceDateStr = data['invoiceDate']?.toString();
+        String invoiceDate = "";
+        if (invoiceDateStr != null && invoiceDateStr.isNotEmpty) {
+          try {
+            // 解析原始日期字符串
+            // final DateTime dateTime = inputFormatter.parse(invoiceDateStr);
+            // // 格式化为易读的日期字符串
+            // invoiceDate = outputFormatter.format(dateTime);
+            invoiceDate = invoiceDateStr;
+          } on FormatException catch (e) {
+            print("日期解析失败：$e，原始日期字符串：$invoiceDateStr");
+            invoiceDate = invoiceDateStr; // 解析失败则保留原始值
+          }
+        }
+
+        // 4. 提取产品名（处理空值）
+        final String productNameLeft =
+            data['productNameLeft']?.toString() ?? "";
+        final String productNameRight =
+            data['productNameRight']?.toString() ?? "";
+
+        // 5. 提取验光数据（球镜/柱镜/轴位）
+        final String sphLeft = data['sphLeft']?.toString() ?? "";
+        final String sphRight = data['sphRight']?.toString() ?? "";
+        final String cylLeft = data['cylLeft']?.toString() ?? "";
+        final String cylRight = data['cylRight']?.toString() ?? "";
+        final String axisLeft = data['axisLeft']?.toString() ?? "";
+        final String axisRight = data['axisRight']?.toString() ?? "";
+
+        // 6. 提取防伪码/物流码
+        final String qrcodeRight = data['qrcodeRight']?.toString() ?? "";
+        final String qrcodeLeft = data['qrcodeLeft']?.toString() ?? "";
+        final String logisticCodeRight =
+            data['logisticCodeRight']?.toString() ?? "";
+        final String logisticCodeLeft =
+            data['logisticCodeLeft']?.toString() ?? "";
+
+        // 7. 判断右眼产品是否含“星趣控”，创建 DTO 并加入列表
+        if (productNameRight.contains("星趣控")) {
+          dto.trackingNo = trackingNo;
+          dto.SPH = sphRight;
+          dto.CYL = cylRight;
+          dto.AXIS = axisRight;
+          dto.qrCode = qrcodeRight;
+          dto.invoiceDatetime = invoiceDate;
+          dto.setUrlWithNfc(
+            logisticCodeRight,
+            false,
+          ); // 对应 Java 的 setUrl(url, false)
+          dataList_R.add(dto);
+          print("右眼星趣控数据已添加：${dto.toString()}");
+        }
+
+        // 8. 判断左眼产品是否含“星趣控”，创建 DTO 并加入列表
+        if (productNameLeft.contains("星趣控")) {
+          dto.trackingNo = trackingNo;
+          dto.SPH = sphLeft;
+          dto.CYL = cylLeft;
+          dto.AXIS = axisLeft;
+          dto.qrCode = qrcodeLeft;
+          dto.invoiceDatetime = invoiceDate;
+          dto.setUrlWithNfc(
+            logisticCodeLeft,
+            false,
+          ); // 对应 Java 的 setUrl(url, false)
+          dataList_L.add(dto);
+          print("左眼星趣控数据已添加：${dto.toString()}");
+        }
+      }
+    } on FormatException catch (e) {
+      // 捕获 JSON 格式错误
+      print("xcxProcessResponse：JSON 解析失败 - ${e.message}");
+    } catch (e) {
+      // 捕获其他未知异常
+      print("xcxProcessResponse：处理失败 - $e");
+    }
   }
 
   Future<void> startRequest() async {
@@ -382,6 +574,11 @@ class _MyHomePageState extends State<MyHomePage> {
                   spacing: 10,
                   children: [
                     buildEditText(
+                      "sessionId",
+                      sessionId,
+                      (value) => sessionId = value,
+                    ),
+                    buildEditText(
                       "保存间隔(每满多少保存一次)",
                       splitNumber,
                       (value) => splitNumber = value,
@@ -454,5 +651,110 @@ class _MyHomePageState extends State<MyHomePage> {
         ],
       ),
     );
+  }
+}
+
+class JsonParseExcelDTO {
+  // ========== 字段定义（对应Java，标注Excel注解信息） ==========
+  // 追踪码（index=0）
+  // @ExcelProperty(value = "追踪码", index = 0)
+  String? trackingNo;
+
+  // 产品名（index=1）
+  // @ExcelProperty(value = "产品名", index = 1)
+  String? productName;
+
+  // 球镜（index=2）
+  // @ExcelProperty(value = "球镜", index = 2)
+  String? SPH;
+
+  // 柱镜（index=3）
+  // @ExcelProperty(value = "柱镜", index = 3)
+  String? CYL;
+
+  // AXIS（index=4）
+  // @ExcelProperty(value = "AXIS", index = 4)
+  String? AXIS;
+
+  // 生产时间（index=5）
+  // @ExcelProperty(value = "生产时间", index = 5)
+  String? invoiceDatetime; // Dart推荐小驼峰，对应Java的InvoiceDatetime
+
+  // 防伪码（index=6）
+  // @ExcelProperty(value = "防伪码", index = 6)
+  String? qrCode; // Dart推荐小驼峰，对应Java的QrCode
+
+  // 详情链接（index=7）
+  // @ExcelProperty(value = "详情链接", index = 7)
+  String? url;
+
+  // 眼睛位置 R/L（index=8）
+  // @ExcelProperty(value = "眼睛位置", index = 8)
+  String? eye; // Dart推荐小驼峰，对应Java的Eye
+
+  // 扫描次数（index=9）
+  // @ExcelProperty(value = "扫描次数", index = 9)
+  String? scanTimes;
+
+  // 产品编码（index=10）
+  // @ExcelProperty(value = "产品编码", index = 10)
+  String? productCode;
+
+  // ========== 构造函数 ==========
+  // 空构造函数
+  JsonParseExcelDTO();
+
+  // 可选：带参数的构造函数（方便快速初始化）
+  JsonParseExcelDTO.withParams({
+    this.trackingNo,
+    this.productName,
+    this.SPH,
+    this.CYL,
+    this.AXIS,
+    this.invoiceDatetime,
+    this.qrCode,
+    this.url,
+    this.eye,
+    this.scanTimes,
+    this.productCode,
+  });
+
+  // ========== Getter/Setter（Dart特性：字段默认有get/set，特殊逻辑单独实现） ==========
+  // 普通字段的get/set Dart自动生成，无需手动写（比如trackingNo的get/set）
+
+  // 重载setUrl的替代方案（Dart不支持方法重载，用参数区分）
+  /// 基础setUrl（对应Java的setUrl(String url)）
+  set setUrl(String? newUrl) {
+    url = newUrl;
+  }
+
+  /// 带NFC标识的setUrl（对应Java的setUrl(String url, boolean isNfc)）
+  void setUrlWithNfc(String? newUrl, bool isNfc) {
+    if (newUrl == null) return;
+    if (isNfc) {
+      url =
+          "https://authcode.essilorchina.com/essilornfc/info?nfc_code=$newUrl";
+    } else {
+      url =
+          "https://authcode.essilorchina.com/essilornfc/info?logistic_code=$newUrl";
+    }
+  }
+
+  // ========== 重写toString方法 ==========
+  @override
+  String toString() {
+    return 'JsonParseExcelDTO{'
+        'trackingNo: $trackingNo, '
+        'productName: $productName, '
+        'SPH: $SPH, '
+        'CYL: $CYL, '
+        'AXIS: $AXIS, '
+        'invoiceDatetime: $invoiceDatetime, '
+        'qrCode: $qrCode, '
+        'url: $url, '
+        'eye: $eye, '
+        'scanTimes: $scanTimes, '
+        'productCode: $productCode'
+        '}';
   }
 }
