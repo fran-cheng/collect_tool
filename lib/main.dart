@@ -98,6 +98,9 @@ class _MyHomePageState extends State<MyHomePage> {
   //  已执行
   int currentNumber = 0;
 
+  // 已执行信息
+  Map<String, String> mProcessData = {};
+
   @override
   void initState() {
     super.initState();
@@ -120,48 +123,58 @@ class _MyHomePageState extends State<MyHomePage> {
     saveDirPath = appTempDirPath;
   }
 
-  Future<void> checkNfcNumber(String realNumber) async {
-    if (_isLoading || isStart) {
+  /// 修改后：返回解析后的JSON数据（成功返回Map，失败/异常返回null）
+  Future<Map<String, dynamic>?> checkNfcNumber(String nfcNumber) async {
+    // 1. 正在加载/运行中，返回null并提示
+    if (_isLoading) {
       showSnackBar("正在检查请稍等");
-      return;
+      return null;
     }
-    if (realNumber.isEmpty) {
+
+    // 2. 参数不合法，返回null并提示
+    if (nfcNumber.isEmpty) {
       showSnackBar("参数不合法", isError: true);
-      return;
+      return null;
     }
+
     _isLoading = true;
-    // 执行网络请求
+    Map<String, dynamic>? resultData; // 存储要返回的data
     String url =
-        "https://gc-eoca.essilorchina.com/masterdata/orders?nfc_code=${realNumber}&application=nfc_code";
+        "https://gc-eoca.essilorchina.com/masterdata/orders?nfc_code=${nfcNumber}&application=nfc_code";
+
     try {
       // 发送 GET 请求
       http.Response getResponse = await http.get(
-        Uri.parse(url), // Dart 中 URL 需转为 Uri 对象
+        Uri.parse(url),
         headers: {
-          // 请求头（类似 OkHttp 的 Headers）
-          // "Content-Type": "application/json",
           "user-agent":
               "Mozilla/5.0 (iPhone; CPU iPhone OS 6_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/6.0 Mobile/10A5376e Safari/8536.25",
         },
       );
-      // await Future.delayed(Duration(seconds: 2));
-      // http.Response getResponse = new http.Response("body", 1);
+
       // 处理响应
       if (getResponse.statusCode == 200) {
-        // 解析 JSON 响应体
-        Map<String, dynamic> data = json.decode(getResponse.body);
-        print("GET 请求成功：$data");
+        // 解析 JSON 并赋值给返回变量
+        resultData = json.decode(getResponse.body);
+        print("GET 请求成功：$resultData");
         showSnackBar("请求成功，是有效的");
       } else {
         print("GET 请求失败，状态码：${getResponse.statusCode}");
         showSnackBar("失败了,无效的", isError: true);
+        resultData = null; // 状态码非200返回null
       }
     } catch (e) {
-      // 捕获网络异常（超时、无网络等）
+      // 捕获网络异常，返回null
       print("网络请求异常：$e");
       showSnackBar("失败了", isError: true);
+      resultData = null;
+    } finally {
+      // 无论成功/失败/异常，都重置加载状态（关键：避免_isLoading卡死）
+      _isLoading = false;
     }
-    _isLoading = false;
+
+    // 返回解析后的data（成功为Map，失败/异常为null）
+    return resultData;
   }
 
   Future<void> xcxProcess(String realNumber, JsonParseExcelDTO dto) async {
@@ -351,6 +364,30 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       showSnackBar("已开始");
       isStart = true;
+      final mixSleepTime = sleepTime > 0 ? sleepTime : 1;
+      for (; currentNumber < maxRequestNumber; currentNumber++) {
+        nfcStr = nfc_number.toRadixString(16);
+        String realNumber = preStr + nfcStr + endStr;
+        print("fran: " + realNumber);
+
+        Map<String, dynamic>? responseData = await checkNfcNumber(realNumber);
+        if (responseData != null) {
+          JsonParseExcelDTO dto = JsonParseExcelDTO();
+          String trackingNo = responseData["results"][0]["TrackingNo"];
+          dto.trackingNo = trackingNo;
+          print("fran: trackingNo ${trackingNo}");
+          // xcxProcess(trackingNo, dto);
+        }
+        await Future.delayed(Duration(seconds: mixSleepTime));
+        nfc_number--;
+        setState(() {});
+        if (!isStart || true) {
+          break;
+        }
+      }
+      if (currentNumber == maxRequestNumber) {
+        showSnackBar("已完成");
+      }
     }
 
     setState(() {});
@@ -401,11 +438,12 @@ class _MyHomePageState extends State<MyHomePage> {
                 showSnackBar("$tag不能为空", isError: true);
                 return;
               }
-              if (newArg.length != 4) {
-                showSnackBar("$tag只能是4个", isError: true);
-                return;
-              }
+
               if (isHex) {
+                if (newArg.length != 4) {
+                  showSnackBar("$tag只能是4个", isError: true);
+                  return;
+                }
                 if (!isHexString(newArg)) {
                   showSnackBar("$tag 得是16进制格式", isError: true);
                   return;
