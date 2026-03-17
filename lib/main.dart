@@ -101,6 +101,22 @@ class _MyHomePageState extends State<MyHomePage> {
   // 已执行信息
   Map<String, String> mProcessData = {};
 
+  // 显示执行信息
+  List<String> _textList = [];
+
+  // 🔴 核心方法：添加新文本，自动维护列表长度为10条
+  void addNewText(String newText) {
+    print(newText);
+    setState(() {
+      // 1. 新增文本插入到列表末尾（最新的在最下面）
+      _textList.add(newText);
+      // 2. 如果超过10条，移除最旧的那条（列表开头的第一条）
+      if (_textList.length > 10) {
+        _textList.removeAt(0); // 移除索引为0的元素（最旧）
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -156,7 +172,7 @@ class _MyHomePageState extends State<MyHomePage> {
       if (getResponse.statusCode == 200) {
         // 解析 JSON 并赋值给返回变量
         resultData = json.decode(getResponse.body);
-        print("GET 请求成功：$resultData");
+        print("响应内容：\n${getResponse.body}");
         showSnackBar("请求成功，是有效的");
       } else {
         print("GET 请求失败，状态码：${getResponse.statusCode}");
@@ -177,7 +193,8 @@ class _MyHomePageState extends State<MyHomePage> {
     return resultData;
   }
 
-  Future<void> xcxProcess(String realNumber, JsonParseExcelDTO dto) async {
+  Future<String> xcxProcess(String realNumber) async {
+    String qrCodeUrl = "";
     // 1. 先从缓存读取响应内容
     String responseBody = mXcxData[realNumber] ?? "";
 
@@ -228,7 +245,7 @@ class _MyHomePageState extends State<MyHomePage> {
           mXcxData[realNumber] = responseBody;
 
           // 8. 处理响应结果
-          await xcxProcessResponseDto(realNumber, dto, responseBody);
+          qrCodeUrl = await xcxProcessResponseDto(realNumber, responseBody);
         } else {
           // 非 2xx 状态码，打印错误
           print("请求失败，状态码：${response.statusCode}");
@@ -253,21 +270,21 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       // 从缓存读取数据，处理响应
       print("读取缓存响应内容：\n$responseBody");
-      await xcxProcessResponseDto(realNumber, dto, responseBody);
+      qrCodeUrl = await xcxProcessResponseDto(realNumber, responseBody);
     }
+    return qrCodeUrl;
   }
 
-  xcxProcessResponseDto(
+  Future<String> xcxProcessResponseDto(
     String trackingNo,
-    JsonParseExcelDTO dto,
     String responseStr,
   ) async {
     // 防御性判断：DTO 为空或响应字符串为空，直接返回
+    String urls = "";
     if (responseStr.isEmpty) {
       print("xcxProcessResponseDto：DTO 为空或响应字符串为空");
-      return;
+      return urls;
     }
-
     try {
       // 1. 解析 JSON 字符串为 Dart 的 Map（对应 Java 的 JsonObject）
       final Map<String, dynamic> jsonObject = jsonDecode(responseStr);
@@ -311,6 +328,8 @@ class _MyHomePageState extends State<MyHomePage> {
         // 6. 提取防伪码/物流码
         final String qrcodeRight = data['qrcodeRight']?.toString() ?? "";
         final String qrcodeLeft = data['qrcodeLeft']?.toString() ?? "";
+        final String scanTimes =
+            data['scanInfo']?['scanTimes']?.toString() ?? "";
         final String logisticCodeRight =
             data['logisticCodeRight']?.toString() ?? "";
         final String logisticCodeLeft =
@@ -318,34 +337,40 @@ class _MyHomePageState extends State<MyHomePage> {
 
         // 7. 判断右眼产品是否含“星趣控”，创建 DTO 并加入列表
         if (productNameRight.contains("星趣控")) {
+          JsonParseExcelDTO dto = JsonParseExcelDTO();
+          dto.scanTimes = scanTimes;
+          dto.productName = productNameRight;
           dto.trackingNo = trackingNo;
           dto.SPH = sphRight;
           dto.CYL = cylRight;
+          dto.eye = "R";
           dto.AXIS = axisRight;
           dto.qrCode = qrcodeRight;
           dto.invoiceDatetime = invoiceDate;
-          dto.setUrlWithNfc(
-            logisticCodeRight,
-            false,
-          ); // 对应 Java 的 setUrl(url, false)
+          dto.url =
+              "https://authcode.essilorchina.com/essilornfc/info?logistic_code=$logisticCodeRight";
           dataList_R.add(dto);
           print("右眼星趣控数据已添加：${dto.toString()}");
+          urls += dto.url! + "\n";
         }
 
         // 8. 判断左眼产品是否含“星趣控”，创建 DTO 并加入列表
         if (productNameLeft.contains("星趣控")) {
+          JsonParseExcelDTO dto = JsonParseExcelDTO();
+          dto.scanTimes = scanTimes;
+          dto.productName = productNameLeft;
           dto.trackingNo = trackingNo;
           dto.SPH = sphLeft;
           dto.CYL = cylLeft;
+          dto.eye = "L";
           dto.AXIS = axisLeft;
           dto.qrCode = qrcodeLeft;
           dto.invoiceDatetime = invoiceDate;
-          dto.setUrlWithNfc(
-            logisticCodeLeft,
-            false,
-          ); // 对应 Java 的 setUrl(url, false)
+          dto.url =
+              "https://authcode.essilorchina.com/essilornfc/info?logistic_code=$logisticCodeLeft";
           dataList_L.add(dto);
           print("左眼星趣控数据已添加：${dto.toString()}");
+          urls += dto.url! + "\n";
         }
       }
     } on FormatException catch (e) {
@@ -355,6 +380,8 @@ class _MyHomePageState extends State<MyHomePage> {
       // 捕获其他未知异常
       print("xcxProcessResponse：处理失败 - $e");
     }
+
+    return urls;
   }
 
   Future<void> startRequest() async {
@@ -368,15 +395,19 @@ class _MyHomePageState extends State<MyHomePage> {
       for (; currentNumber < maxRequestNumber; currentNumber++) {
         nfcStr = nfc_number.toRadixString(16);
         String realNumber = preStr + nfcStr + endStr;
-        print("fran: " + realNumber);
 
         Map<String, dynamic>? responseData = await checkNfcNumber(realNumber);
         if (responseData != null) {
-          JsonParseExcelDTO dto = JsonParseExcelDTO();
           String trackingNo = responseData["results"][0]["TrackingNo"];
-          dto.trackingNo = trackingNo;
-          print("fran: trackingNo ${trackingNo}");
-          // xcxProcess(trackingNo, dto);
+          addNewText("查询成功: ${realNumber}, trackingNo: ${trackingNo} ");
+          String qrCode = await xcxProcess(trackingNo);
+          if (qrCode.length > 0) {
+            addNewText("校验成功: ${qrCode}");
+          } else {
+            addNewText("校验失败: ${qrCode}");
+          }
+        } else {
+          addNewText("查询失败: ${realNumber}");
         }
         await Future.delayed(Duration(seconds: mixSleepTime));
         nfc_number--;
@@ -669,7 +700,17 @@ class _MyHomePageState extends State<MyHomePage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: 10,
-                  children: [Text("请求日志：")],
+                  children: [
+                    Text("请求日志："), const SizedBox(height: 10),
+                    // 方式1：拼接所有文本为一个Text（用换行符分隔）
+                    Text(
+                      _textList.join("\n"), // 核心：列表转字符串，每条换行
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
                 ),
                 Column(
                   mainAxisSize: MainAxisSize.min,
@@ -759,24 +800,6 @@ class JsonParseExcelDTO {
 
   // ========== Getter/Setter（Dart特性：字段默认有get/set，特殊逻辑单独实现） ==========
   // 普通字段的get/set Dart自动生成，无需手动写（比如trackingNo的get/set）
-
-  // 重载setUrl的替代方案（Dart不支持方法重载，用参数区分）
-  /// 基础setUrl（对应Java的setUrl(String url)）
-  set setUrl(String? newUrl) {
-    url = newUrl;
-  }
-
-  /// 带NFC标识的setUrl（对应Java的setUrl(String url, boolean isNfc)）
-  void setUrlWithNfc(String? newUrl, bool isNfc) {
-    if (newUrl == null) return;
-    if (isNfc) {
-      url =
-          "https://authcode.essilorchina.com/essilornfc/info?nfc_code=$newUrl";
-    } else {
-      url =
-          "https://authcode.essilorchina.com/essilornfc/info?logistic_code=$newUrl";
-    }
-  }
 
   // ========== 重写toString方法 ==========
   @override
