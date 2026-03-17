@@ -35,7 +35,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const MyHomePage(title: 'Home Page'),
+      home: const MyHomePage(title: 'YSL 数据查询'),
     );
   }
 }
@@ -73,6 +73,15 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // 分割保存的间隔
   int splitNumber = 1000;
+
+  // 间隔请求时间
+  int sleepTime = 1;
+
+  // 请求数量
+  int maxRequestNumber = 100;
+
+  // 保存文件目录
+  String saveDirPath = "";
 
   Future<void> checkNfcNumber(String realNumber) async {
     if (_isLoading) {
@@ -299,7 +308,13 @@ class _MyHomePageState extends State<MyHomePage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   spacing: 10,
-                  children: [Text("当前是: " + preStr + nfcStr + endStr)],
+                  children: [
+                    Text("当前是: " + preStr + nfcStr + endStr),
+                    ElevatedButton(
+                      onPressed: () => checkNfcNumber(preStr + nfcStr + endStr),
+                      child: Text("检查当前是否有效"),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -319,11 +334,33 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
             margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-            child: Column(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                ElevatedButton(
-                  onPressed: () => checkNfcNumber(preStr + nfcStr + endStr),
-                  child: Text("检查当前是否有效"),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 10,
+                  children: [
+                    buildEditText(
+                      "保存间隔(每满多少保存一次)",
+                      splitNumber,
+                      (value) => splitNumber = value,
+                    ),
+                    buildEditText(
+                      "请求间隔(每次请求间隔，单位秒)",
+                      sleepTime,
+                      (value) => sleepTime = value,
+                    ),
+                    buildEditText("数量", maxRequestNumber, (value) => maxRequestNumber = value),
+                    buildEditText("导出文件路径", saveDirPath, (value) => saveDirPath = value),
+                  ],
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  spacing: 10,
+                  children: [Text("当前是: " + preStr + nfcStr + endStr)],
                 ),
               ],
             ),
