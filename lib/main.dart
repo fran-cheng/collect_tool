@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:path/path.dart' as path;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -87,6 +89,26 @@ class _MyHomePageState extends State<MyHomePage> {
 
   //  已执行
   int currentNumber = 0;
+  @override
+  void initState() {
+    super.initState();
+    // 直接调用异步方法（无需 await，不阻塞 initState 执行）
+    initPath();
+  }
+  Future<void> initPath() async {
+    String exeDir = path.dirname(Platform.resolvedExecutable);
+
+    // 3. 拼接应用目录下的temp子目录路径
+    String appTempDirPath = path.join(exeDir, "temp");
+    Directory appTempDir = Directory(appTempDirPath);
+
+    // 4. 如果temp目录不存在，自动创建
+    if (!await appTempDir.exists()) {
+      await appTempDir.create(recursive: true);
+      print("应用temp目录已创建：$appTempDirPath");
+    }
+    saveDirPath = appTempDirPath;
+  }
 
   Future<void> checkNfcNumber(String realNumber) async {
     if (_isLoading) {
@@ -134,14 +156,12 @@ class _MyHomePageState extends State<MyHomePage> {
     if (isStart) {
       isStart = false;
       showSnackBar("正在停止");
-
-    }else{
+    } else {
+      showSnackBar("已开始");
       isStart = true;
     }
 
-    setState(() {
-
-    });
+    setState(() {});
   }
 
   // 3. 修改功能：弹出输入框修改appName
