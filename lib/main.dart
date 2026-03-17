@@ -64,6 +64,10 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  static int MAX_COUNT = 10;
+  int errCount = 0;
+  int requestCount = 0;
+
   static final Map<String, String> mXcxData = {};
 
   //		1D3A2E29141080
@@ -398,16 +402,28 @@ class _MyHomePageState extends State<MyHomePage> {
 
         Map<String, dynamic>? responseData = await checkNfcNumber(realNumber);
         if (responseData != null) {
+          requestCount = 0;
           String trackingNo = responseData["results"][0]["TrackingNo"];
           addNewText("查询成功: ${realNumber}, trackingNo: ${trackingNo} ");
           String qrCode = await xcxProcess(trackingNo);
           if (qrCode.length > 0) {
             addNewText("校验成功: ${qrCode}");
+            errCount = 0;
           } else {
+            errCount++;
             addNewText("校验失败: ${qrCode}");
+            if (errCount > MAX_COUNT) {
+              addNewText("连续校验失败: ${errCount}，已暂停");
+              isStart = false;
+            }
           }
         } else {
+          requestCount++;
           addNewText("查询失败: ${realNumber}");
+          if (requestCount > MAX_COUNT) {
+            addNewText("连续查询失败: ${requestCount}，已暂停");
+            isStart = false;
+          }
         }
         await Future.delayed(Duration(seconds: mixSleepTime));
         nfc_number--;
