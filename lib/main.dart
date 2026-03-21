@@ -72,6 +72,7 @@ class _MyHomePageState extends State<MyHomePage> {
   static final Map<String, String> mXcxData = {};
 
   bool _isLoading = false;
+
   // 追踪码
   int trackingNumber = 116016402182;
 
@@ -138,7 +139,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   /// 修改后：返回解析后的JSON数据（成功返回Map，失败/异常返回null）
-  Future<Map<String, dynamic>?> checkCodeNumber(int trackingNumber,bool isCheck) async {
+  Future<Map<String, dynamic>?> checkCodeNumber(
+    int trackingNumber,
+    bool isCheck,
+  ) async {
     // 1. 正在加载/运行中，返回null并提示
     if (_isLoading) {
       showSnackBar("正在检查请稍等");
@@ -171,15 +175,14 @@ class _MyHomePageState extends State<MyHomePage> {
         // 解析 JSON 并赋值给返回变量
         resultData = json.decode(getResponse.body);
         print("响应内容：\n${getResponse.body}");
-        if(isCheck){
-          if(resultData!=null){
-           String trackingNo =  resultData["results"][0]["TrackingNo"];
+        if (isCheck) {
+          if (resultData != null) {
+            String trackingNo = resultData["results"][0]["TrackingNo"];
             showSnackBar("请求成功:${trackingNo}");
-          }else{
+          } else {
             showSnackBar("失败了,无效的", isError: true);
           }
         }
-
       } else {
         print("GET 请求失败，状态码：${getResponse.statusCode}");
         showSnackBar("失败了,无效的", isError: true);
@@ -199,8 +202,12 @@ class _MyHomePageState extends State<MyHomePage> {
     return resultData;
   }
 
-  Future<String> xcxProcess(String realNumber, int  trackingNumber) async {
-    String qrCodeUrl = "";
+  Future<String> xcxProcess(
+    String realNumber,
+    int trackingNumber,
+    JsonParseExcelDTO dto,
+  ) async {
+    String qrCodeUrl = "false";
     // 1. 先从缓存读取响应内容
     String responseBody = mXcxData[realNumber] ?? "";
 
@@ -216,24 +223,25 @@ class _MyHomePageState extends State<MyHomePage> {
         final Map<String, String> headers = {
           "Host": "nkyj.wshendu.com",
           "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254171e) XWEB/18787",
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254171e) XWEB/18787",
           "xweb_xhr": "1",
           "Content-Type": "application/x-www-form-urlencoded", // 表单提交类型（核心）
           "Accept": "*/*",
-          "Referer": "https://servicewechat.com/wxd35896d9a4cad434/109/page-frame.html",
+          "Referer":
+              "https://servicewechat.com/wxd35896d9a4cad434/109/page-frame.html",
           "Accept-Language": "zh-CN,zh;q=0.9",
           // 移除原示例中无关的头（如 Connection/Sec-Fetch-* 等，原 Java 代码未使用）
         };
-
-        // 3. 构建表单请求体（对应 Java 的 FormBody）
+        String date = dto.invoiceDatetime ?? "";
+        // // 3. 构建表单请求体（对应 Java 的 FormBody）
         final Map<String, String> formData = {
           "wxapp_id": "10001",
-          "track_no": realNumber,
-          "optios_no": optios_no,
+          "track_no": dto.trackingNo ?? "",
+          "optios_no": dto.productCode ?? "",
           "side": "2",
-          "prodName": prodName,
-          "sph": sph,
-          "cly": cly,
+          "prodName": dto.productName ?? "",
+          "sph": dto.SPH ?? "",
+          "cly": dto.CYL ?? "",
           "type": "10",
           "date": date,
           "token": token,
@@ -254,7 +262,11 @@ class _MyHomePageState extends State<MyHomePage> {
 
           // 7. 存入缓存
           mXcxData[realNumber] = responseBody;
-
+          if (responseBody.contains("验证失败") || responseBody.contains("已激活")) {
+            qrCodeUrl = "false";
+          } else {
+            qrCodeUrl = "true";
+          }
           // 8. 处理响应结果
           // qrCodeUrl = await xcxProcessResponseDto(
           //   realNumber,
@@ -268,6 +280,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ? response.body
               : "无错误内容";
           print("错误响应内容：$errorBody");
+          qrCodeUrl = "false";
         }
       } on SocketException catch (e) {
         // 捕获网络连接异常（如无网络、连接超时）
@@ -285,129 +298,13 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       // 从缓存读取数据，处理响应
       print("读取缓存响应内容：\n$responseBody");
-      // qrCodeUrl = await xcxProcessResponseDto(
-      //   realNumber,
-      //   responseBody,
-      //   nfcCode,
-      // );
+      if (responseBody.contains("验证失败") || responseBody.contains("已激活")) {
+        qrCodeUrl = "false";
+      } else {
+        qrCodeUrl = "true";
+      }
     }
     return qrCodeUrl;
-  }
-
-  Future<String> xcxProcessResponseDto(
-    String trackingNo,
-    String responseStr,
-    String nfcCode,
-  ) async {
-    // 防御性判断：DTO 为空或响应字符串为空，直接返回
-    String urls = "";
-    if (responseStr.isEmpty) {
-      print("xcxProcessResponseDto：DTO 为空或响应字符串为空");
-      return urls;
-    }
-    try {
-      // 1. 解析 JSON 字符串为 Dart 的 Map（对应 Java 的 JsonObject）
-      final Map<String, dynamic> jsonObject = jsonDecode(responseStr);
-
-      // 2. 获取 "data" 字段（对应 Java 的 dataElement）
-      // 2. 获取 "data" 字段并判断是否为 Map 类型
-      final dynamic dataElement = jsonObject['data'];
-      if (dataElement is Map<String, dynamic>) {
-        final Map<String, dynamic> data = dataElement;
-
-        // 3. 处理日期格式化（核心：解析 invoiceDate 并重新格式化）
-        final String? invoiceDateStr = data['invoiceDate']?.toString();
-        String invoiceDate = "";
-        if (invoiceDateStr != null && invoiceDateStr.isNotEmpty) {
-          try {
-            // 解析原始日期字符串
-            // final DateTime dateTime = inputFormatter.parse(invoiceDateStr);
-            // // 格式化为易读的日期字符串
-            // invoiceDate = outputFormatter.format(dateTime);
-            invoiceDate = invoiceDateStr;
-          } on FormatException catch (e) {
-            print("日期解析失败：$e，原始日期字符串：$invoiceDateStr");
-            invoiceDate = invoiceDateStr; // 解析失败则保留原始值
-          }
-        }
-
-        // 4. 提取产品名（处理空值）
-        final String productNameLeft =
-            data['productNameLeft']?.toString() ?? "";
-        final String productNameRight =
-            data['productNameRight']?.toString() ?? "";
-        final String productCodeLeft =
-            data['productCodeLeft']?.toString() ?? "";
-        final String productCodeRight =
-            data['productCodeRight']?.toString() ?? "";
-
-        // 5. 提取验光数据（球镜/柱镜/轴位）
-        final String sphLeft = data['sphLeft']?.toString() ?? "";
-        final String sphRight = data['sphRight']?.toString() ?? "";
-        final String cylLeft = data['cylLeft']?.toString() ?? "";
-        final String cylRight = data['cylRight']?.toString() ?? "";
-        final String axisLeft = data['axisLeft']?.toString() ?? "";
-        final String axisRight = data['axisRight']?.toString() ?? "";
-
-        // 6. 提取防伪码/物流码
-        final String qrcodeRight = data['qrcodeRight']?.toString() ?? "";
-        final String qrcodeLeft = data['qrcodeLeft']?.toString() ?? "";
-        final String scanTimes =
-            data['scanInfo']?['scanTimes']?.toString() ?? "";
-        final String logisticCodeRight =
-            data['logisticCodeRight']?.toString() ?? "";
-        final String logisticCodeLeft =
-            data['logisticCodeLeft']?.toString() ?? "";
-
-        // 7. 判断右眼产品是否含“星趣控”，创建 DTO 并加入列表
-        if (productNameRight.contains("星趣控")) {
-          JsonParseExcelDTO dto = JsonParseExcelDTO();
-          dto.scanTimes = scanTimes;
-          dto.productCode = productCodeRight;
-          dto.productName = productNameRight;
-          dto.trackingNo = trackingNo;
-          dto.SPH = sphRight;
-          dto.CYL = cylRight;
-          dto.eye = "R";
-          dto.AXIS = axisRight;
-          dto.qrCode = qrcodeRight;
-          dto.invoiceDatetime = invoiceDate;
-          dto.url =
-              "https://authcode.essilorchina.com/essilornfc/info?nfc_code=$nfcCode";
-          dataList_R.add(dto);
-          print("右眼星趣控数据已添加：${dto.toString()}");
-          urls += dto.url! + "\n";
-        }
-
-        // 8. 判断左眼产品是否含“星趣控”，创建 DTO 并加入列表
-        if (productNameLeft.contains("星趣控")) {
-          JsonParseExcelDTO dto = JsonParseExcelDTO();
-          dto.scanTimes = scanTimes;
-          dto.productCode = productCodeLeft;
-          dto.productName = productNameLeft;
-          dto.trackingNo = trackingNo;
-          dto.SPH = sphLeft;
-          dto.CYL = cylLeft;
-          dto.eye = "L";
-          dto.AXIS = axisLeft;
-          dto.qrCode = qrcodeLeft;
-          dto.invoiceDatetime = invoiceDate;
-          dto.url =
-              "https://authcode.essilorchina.com/essilornfc/info?nfc_code=$nfcCode";
-          dataList_L.add(dto);
-          print("左眼星趣控数据已添加：${dto.toString()}");
-          urls += dto.url! + "\n";
-        }
-      }
-    } on FormatException catch (e) {
-      // 捕获 JSON 格式错误
-      print("xcxProcessResponse：JSON 解析失败 - ${e.message}");
-    } catch (e) {
-      // 捕获其他未知异常
-      print("xcxProcessResponse：处理失败 - $e");
-    }
-
-    return urls;
   }
 
   Future<void> startRequest() async {
@@ -420,25 +317,35 @@ class _MyHomePageState extends State<MyHomePage> {
       isStart = true;
       final mixSleepTime = sleepTime > 0 ? sleepTime : 1;
       for (; currentNumber < maxRequestNumber; currentNumber++) {
-
-        Map<String, dynamic>? responseData = await checkCodeNumber(trackingNumber,false);
+        Map<String, dynamic>? responseData = await checkCodeNumber(
+          trackingNumber,
+          false,
+        );
         if (responseData != null) {
           requestCount = 0;
           String trackingNo = responseData["results"][0]["TrackingNo"];
-          JsonParseExcelDTO dto = processNk(responseData);
+          List<JsonParseExcelDTO> dtoList = processNk(responseData);
           addNewText("查询成功: ${trackingNumber}, trackingNo: ${trackingNo} ");
-          print("fran : ${dto}");
-          return;
-          String qrCode = await xcxProcess(trackingNo, trackingNumber);
-          if (qrCode.length > 0) {
-            addNewText("校验成功: ${qrCode}");
-            errCount = 0;
-          } else {
-            errCount++;
-            addNewText("校验失败: ${qrCode}");
-            if (errCount > MAX_COUNT) {
-              addNewText("连续校验失败: ${errCount}，已暂停");
-              isStart = false;
+          for (JsonParseExcelDTO dto in dtoList) {
+            String qrCode = await xcxProcess(trackingNo, trackingNumber, dto);
+            if (qrCode.length > 0) {
+              addNewText("校验成功: ${qrCode}");
+              if ("true" == qrCode) {
+                if (dto.eye == "R") {
+                  dataList_R.add(dto);
+                }
+                if (dto.eye == "L") {
+                  dataList_L.add(dto);
+                }
+              }
+              errCount = 0;
+            } else {
+              errCount++;
+              addNewText("校验失败: ${qrCode}");
+              if (errCount > MAX_COUNT) {
+                addNewText("连续校验失败: ${errCount}，已暂停");
+                isStart = false;
+              }
             }
           }
         } else {
@@ -909,8 +816,11 @@ class _MyHomePageState extends State<MyHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: 10,
                   children: [
-                    buildEditText("检查：", trackingNumber, (value) => trackingNumber = value),
-
+                    buildEditText(
+                      "检查",
+                      trackingNumber,
+                      (value) => trackingNumber = value,
+                    ),
                   ],
                 ),
                 Column(
@@ -918,9 +828,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   spacing: 10,
                   children: [
-                    Text("当前是: ${trackingNumber}"  ),
+                    Text("当前是: ${trackingNumber}"),
                     ElevatedButton(
-                      onPressed: () => checkCodeNumber(trackingNumber,true),
+                      onPressed: () => checkCodeNumber(trackingNumber, true),
                       child: Text("检查当前是否有效"),
                     ),
                   ],
@@ -979,7 +889,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   spacing: 10,
-                  children: [Text("当前是: ${trackingNumber}" )],
+                  children: [Text("当前是: ${trackingNumber}")],
                 ),
               ],
             ),
@@ -1038,19 +948,33 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  JsonParseExcelDTO processNk(Map<String, dynamic> responseData) {
-    return JsonParseExcelDTO.withParams(
-      trackingNo: responseData["trackingNo"],
-      productName: responseData["productName"],
-      SPH: responseData["SPH"],
-      CYL: responseData["CYL"],
-      AXIS: responseData["AXIS"],
-      invoiceDatetime: responseData["invoiceDatetime"],
-      qrCode: responseData["qrCode"],
-      url: responseData["url"],
-      eye: responseData["eye"],
-      scanTimes: responseData["scanTimes"],
-      productCode: responseData["productCode"]);
+  List<JsonParseExcelDTO> processNk(Map<String, dynamic> responseData) {
+    List<JsonParseExcelDTO> listDto = [];
+    Map<String, dynamic> results = responseData["results"][0];
+    List<dynamic>? Lines = results["Lines"];
+    Lines ??= [];
+    for (int i = 0; i < Lines.length; i++) {
+      // 取出单个元素（dynamic 类型，可转成具体类型）
+      Map<String, dynamic> item = Lines[i] as Map<String, dynamic>;
+      if (item["EYE"] == null || item["EYE"].toString().isEmpty) {
+        continue;
+      }
+      JsonParseExcelDTO dto = JsonParseExcelDTO.withParams(
+        trackingNo: results["TrackingNo"],
+        productName: item["ProductName"],
+        SPH: item["SPH"],
+        CYL: item["CYL"],
+        AXIS: item["AXIS"],
+        invoiceDatetime: results["InvoiceDatetime"],
+        qrCode: "",
+        url: "",
+        eye: item["EYE"],
+        scanTimes: "",
+        productCode: item["ProductCode"],
+      );
+      listDto.add(dto);
+    }
+    return listDto;
   }
 }
 
