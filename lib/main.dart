@@ -198,7 +198,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return resultData;
   }
 
-  Future<String> xcxProcess(String realNumber) async {
+  Future<String> xcxProcess(String realNumber,String nfcCode) async {
     String qrCodeUrl = "";
     // 1. 先从缓存读取响应内容
     String responseBody = mXcxData[realNumber] ?? "";
@@ -250,7 +250,7 @@ class _MyHomePageState extends State<MyHomePage> {
           mXcxData[realNumber] = responseBody;
 
           // 8. 处理响应结果
-          qrCodeUrl = await xcxProcessResponseDto(realNumber, responseBody);
+          qrCodeUrl = await xcxProcessResponseDto(realNumber, responseBody,nfcCode);
         } else {
           // 非 2xx 状态码，打印错误
           print("请求失败，状态码：${response.statusCode}");
@@ -275,7 +275,7 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       // 从缓存读取数据，处理响应
       print("读取缓存响应内容：\n$responseBody");
-      qrCodeUrl = await xcxProcessResponseDto(realNumber, responseBody);
+      qrCodeUrl = await xcxProcessResponseDto(realNumber, responseBody,nfcCode);
     }
     return qrCodeUrl;
   }
@@ -283,6 +283,7 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<String> xcxProcessResponseDto(
     String trackingNo,
     String responseStr,
+    String nfcCode,
   ) async {
     // 防御性判断：DTO 为空或响应字符串为空，直接返回
     String urls = "";
@@ -358,7 +359,7 @@ class _MyHomePageState extends State<MyHomePage> {
           dto.qrCode = qrcodeRight;
           dto.invoiceDatetime = invoiceDate;
           dto.url =
-              "https://authcode.essilorchina.com/essilornfc/info?logistic_code=$logisticCodeRight";
+              "https://authcode.essilorchina.com/essilornfc/info?nfc_code=$nfcCode";
           dataList_R.add(dto);
           print("右眼星趣控数据已添加：${dto.toString()}");
           urls += dto.url! + "\n";
@@ -378,7 +379,7 @@ class _MyHomePageState extends State<MyHomePage> {
           dto.qrCode = qrcodeLeft;
           dto.invoiceDatetime = invoiceDate;
           dto.url =
-              "https://authcode.essilorchina.com/essilornfc/info?logistic_code=$logisticCodeLeft";
+              "https://authcode.essilorchina.com/essilornfc/info?nfc_code=$nfcCode";
           dataList_L.add(dto);
           print("左眼星趣控数据已添加：${dto.toString()}");
           urls += dto.url! + "\n";
@@ -413,7 +414,7 @@ class _MyHomePageState extends State<MyHomePage> {
           requestCount = 0;
           String trackingNo = responseData["results"][0]["TrackingNo"];
           addNewText("查询成功: ${realNumber}, trackingNo: ${trackingNo} ");
-          String qrCode = await xcxProcess(trackingNo);
+          String qrCode = await xcxProcess(trackingNo,nfcStr);
           if (qrCode.length > 0) {
             addNewText("校验成功: ${qrCode}");
             errCount = 0;
