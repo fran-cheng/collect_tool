@@ -437,7 +437,7 @@ class _MyHomePageState extends State<MyHomePage> {
         await Future.delayed(Duration(seconds: mixSleepTime));
         nfc_number--;
         setState(() {});
-        if (!isStart || currentNumber > 100) {
+        if (!isStart) {
           isStart = false;
           break;
         } else if (currentNumber != 0 && currentNumber % splitNumber == 0) {
