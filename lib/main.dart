@@ -415,6 +415,7 @@ class _MyHomePageState extends State<MyHomePage> {
       showSnackBar("正在停止");
     } else {
       showSnackBar("已开始");
+      print("clm: ${nfc_number}");
       isStart = true;
       final mixSleepTime = sleepTime > 0 ? sleepTime : 1;
       for (; currentNumber < maxRequestNumber; currentNumber++) {
@@ -912,7 +913,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     buildEditText(
                       "中间",
                       nfcStr,
-                      (value) => {nfcStr = value},
+                      (value) => {nfcStr = value , nfc_number = int.parse(nfcStr, radix: 16)},
                       isHex: true,
                     ),
                     buildEditText("后缀", endStr, (value) => endStr = value),
