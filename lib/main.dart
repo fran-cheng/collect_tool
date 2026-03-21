@@ -138,7 +138,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   /// 修改后：返回解析后的JSON数据（成功返回Map，失败/异常返回null）
-  Future<Map<String, dynamic>?> checkCodeNumber(int trackingNumber) async {
+  Future<Map<String, dynamic>?> checkCodeNumber(int trackingNumber,bool isCheck) async {
     // 1. 正在加载/运行中，返回null并提示
     if (_isLoading) {
       showSnackBar("正在检查请稍等");
@@ -171,7 +171,15 @@ class _MyHomePageState extends State<MyHomePage> {
         // 解析 JSON 并赋值给返回变量
         resultData = json.decode(getResponse.body);
         print("响应内容：\n${getResponse.body}");
-        showSnackBar("请求成功，是有效的");
+        if(isCheck){
+          if(resultData!=null){
+           String trackingNo =  resultData["results"][0]["TrackingNo"];
+            showSnackBar("请求成功:${trackingNo}");
+          }else{
+            showSnackBar("失败了,无效的", isError: true);
+          }
+        }
+
       } else {
         print("GET 请求失败，状态码：${getResponse.statusCode}");
         showSnackBar("失败了,无效的", isError: true);
@@ -199,38 +207,43 @@ class _MyHomePageState extends State<MyHomePage> {
     if (responseBody.isEmpty) {
       // 2. 拼接目标 URL 并转换为 Uri（http 库要求 Uri 类型）
       final String targetUrlStr =
-          "https://crmprod.essilorluxottica.com.cn/membercenter/lens/authcode?qrCode=$realNumber&type=null&authType=2&domain=null";
+          "https://nkyj.wshendu.com/index.php?s=/api/peace/data_verification";
       final Uri targetUrl = Uri.parse(targetUrlStr);
       print("xcxProcess url : $targetUrlStr");
 
       try {
-        // 3. 构建请求头（和原 Java/ Dio 版本完全一致）
+        // 2. 构建请求头（和原 Java 版本完全一致）
         final Map<String, String> headers = {
-          // 核心鉴权头
-          // "sessionId": "${sessionId}",
-          // 模拟微信小程序环境的 User-Agent
+          "Host": "nkyj.wshendu.com",
           "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254162e) XWEB/18163",
-          // 来源校验头
-          "Referer":
-              "https://servicewechat.com/wxa6cee9315b68fa9b/390/page-frame.html",
-          // 其他必要请求头
-          "Host": "crmprod.essilorluxottica.com.cn",
-          "Connection": "keep-alive",
-          "Content-Type": "application/json",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254171e) XWEB/18787",
           "xweb_xhr": "1",
+          "Content-Type": "application/x-www-form-urlencoded", // 表单提交类型（核心）
           "Accept": "*/*",
-          "Sec-Fetch-Site": "cross-site",
-          "Sec-Fetch-Mode": "cors",
-          "Sec-Fetch-Dest": "empty",
-          "Accept-Encoding": "gzip, deflate, br",
+          "Referer": "https://servicewechat.com/wxd35896d9a4cad434/109/page-frame.html",
           "Accept-Language": "zh-CN,zh;q=0.9",
+          // 移除原示例中无关的头（如 Connection/Sec-Fetch-* 等，原 Java 代码未使用）
         };
 
-        // 4. 发送 GET 请求（http 库核心 API）
-        final http.Response response = await http.get(
+        // 3. 构建表单请求体（对应 Java 的 FormBody）
+        final Map<String, String> formData = {
+          "wxapp_id": "10001",
+          "track_no": realNumber,
+          "optios_no": optios_no,
+          "side": "2",
+          "prodName": prodName,
+          "sph": sph,
+          "cly": cly,
+          "type": "10",
+          "date": date,
+          "token": token,
+          "open_id": openId,
+        };
+        // 4. 发送 POST 请求（核心：替换原错误的 GET 请求）
+        final http.Response response = await http.post(
           targetUrl,
           headers: headers,
+          body: formData, // http 库会自动将 Map 编码为 x-www-form-urlencoded 格式
         );
 
         // 5. 检查响应是否成功（状态码 200-299）
@@ -243,11 +256,11 @@ class _MyHomePageState extends State<MyHomePage> {
           mXcxData[realNumber] = responseBody;
 
           // 8. 处理响应结果
-          qrCodeUrl = await xcxProcessResponseDto(
-            realNumber,
-            responseBody,
-            nfcCode,
-          );
+          // qrCodeUrl = await xcxProcessResponseDto(
+          //   realNumber,
+          //   responseBody,
+          //   nfcCode,
+          // );
         } else {
           // 非 2xx 状态码，打印错误
           print("请求失败，状态码：${response.statusCode}");
@@ -272,11 +285,11 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       // 从缓存读取数据，处理响应
       print("读取缓存响应内容：\n$responseBody");
-      qrCodeUrl = await xcxProcessResponseDto(
-        realNumber,
-        responseBody,
-        nfcCode,
-      );
+      // qrCodeUrl = await xcxProcessResponseDto(
+      //   realNumber,
+      //   responseBody,
+      //   nfcCode,
+      // );
     }
     return qrCodeUrl;
   }
@@ -408,11 +421,14 @@ class _MyHomePageState extends State<MyHomePage> {
       final mixSleepTime = sleepTime > 0 ? sleepTime : 1;
       for (; currentNumber < maxRequestNumber; currentNumber++) {
 
-        Map<String, dynamic>? responseData = await checkCodeNumber(trackingNumber);
+        Map<String, dynamic>? responseData = await checkCodeNumber(trackingNumber,false);
         if (responseData != null) {
           requestCount = 0;
           String trackingNo = responseData["results"][0]["TrackingNo"];
+          JsonParseExcelDTO dto = processNk(responseData);
           addNewText("查询成功: ${trackingNumber}, trackingNo: ${trackingNo} ");
+          print("fran : ${dto}");
+          return;
           String qrCode = await xcxProcess(trackingNo, trackingNumber);
           if (qrCode.length > 0) {
             addNewText("校验成功: ${qrCode}");
@@ -427,20 +443,20 @@ class _MyHomePageState extends State<MyHomePage> {
           }
         } else {
           requestCount++;
-          addNewText("查询失败: ${realNumber}");
+          addNewText("查询失败: ${trackingNumber}");
           if (requestCount > MAX_COUNT) {
             addNewText("连续查询失败: ${requestCount}，已暂停");
             isStart = false;
           }
         }
         await Future.delayed(Duration(seconds: mixSleepTime));
-        nfc_number--;
+        trackingNumber--;
         setState(() {});
         if (!isStart) {
           isStart = false;
           break;
         } else if (currentNumber != 0 && currentNumber % splitNumber == 0) {
-          String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
+          String fileName = "$firstStr-$trackingNumber.xlsx";
           addNewText("保存: $fileName");
           saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
         }
@@ -451,7 +467,7 @@ class _MyHomePageState extends State<MyHomePage> {
         isStart = false;
       }
     }
-    String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
+    String fileName = "$firstStr-$trackingNumber.xlsx";
     addNewText("保存: $fileName");
     saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
     setState(() {});
@@ -893,14 +909,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: 10,
                   children: [
-                    buildEditText("前缀", preStr, (value) => preStr = value),
-                    buildEditText(
-                      "中间",
-                      nfcStr,
-                      (value) => {nfcStr = value},
-                      isHex: true,
-                    ),
-                    buildEditText("后缀", endStr, (value) => endStr = value),
+                    buildEditText("检查：", trackingNumber, (value) => trackingNumber = value),
+
                   ],
                 ),
                 Column(
@@ -908,9 +918,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   spacing: 10,
                   children: [
-                    Text("当前是: " + preStr + nfcStr + endStr),
+                    Text("当前是: ${trackingNumber}"  ),
                     ElevatedButton(
-                      onPressed: () => checkNfcNumber(preStr + nfcStr + endStr),
+                      onPressed: () => checkCodeNumber(trackingNumber,true),
                       child: Text("检查当前是否有效"),
                     ),
                   ],
@@ -969,7 +979,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   spacing: 10,
-                  children: [Text("当前是: " + preStr + nfcStr + endStr)],
+                  children: [Text("当前是: ${trackingNumber}" )],
                 ),
               ],
             ),
@@ -1026,6 +1036,21 @@ class _MyHomePageState extends State<MyHomePage> {
         ],
       ),
     );
+  }
+
+  JsonParseExcelDTO processNk(Map<String, dynamic> responseData) {
+    return JsonParseExcelDTO.withParams(
+      trackingNo: responseData["trackingNo"],
+      productName: responseData["productName"],
+      SPH: responseData["SPH"],
+      CYL: responseData["CYL"],
+      AXIS: responseData["AXIS"],
+      invoiceDatetime: responseData["invoiceDatetime"],
+      qrCode: responseData["qrCode"],
+      url: responseData["url"],
+      eye: responseData["eye"],
+      scanTimes: responseData["scanTimes"],
+      productCode: responseData["productCode"]);
   }
 }
 
