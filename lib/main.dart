@@ -95,7 +95,7 @@ class _MyHomePageState extends State<MyHomePage> {
   // 保存文件目录
   String saveDirPath = "";
 
-  bool isStart = false;
+  static bool isStart = false;
 
   // 小程序sessionId
   String sessionId = "486754BB63A64895BF8BB4338CC2D37A";
@@ -145,7 +145,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   /// 修改后：返回解析后的JSON数据（成功返回Map，失败/异常返回null）
-  Future<Map<String, dynamic>?> checkNfcNumber(String nfcNumber,bool isCheck) async {
+  Future<Map<String, dynamic>?> checkNfcNumber(
+    String nfcNumber,
+    bool isCheck,
+  ) async {
     // 1. 正在加载/运行中，返回null并提示
     if (_isLoading) {
       showSnackBar("正在检查请稍等");
@@ -178,19 +181,18 @@ class _MyHomePageState extends State<MyHomePage> {
         // 解析 JSON 并赋值给返回变量
         resultData = json.decode(getResponse.body);
         print("响应内容：\n${getResponse.body}");
-        if(isCheck){
+        if (isCheck) {
           if (resultData != null) {
             String trackingNo = resultData["results"][0]["TrackingNo"];
-            if(trackingNo.isNotEmpty){
+            if (trackingNo.isNotEmpty) {
               showSnackBar("请求成功${trackingNo}");
-            }else{
+            } else {
               showSnackBar("失败了,无效的", isError: true);
             }
-          }else{
+          } else {
             showSnackBar("失败了,无效的", isError: true);
           }
         }
-
       } else {
         print("GET 请求失败，状态码：${getResponse.statusCode}");
         showSnackBar("失败了,无效的", isError: true);
@@ -210,7 +212,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return resultData;
   }
 
-  Future<String> xcxProcess(String realNumber,String nfcCode) async {
+  Future<String> xcxProcess(String realNumber, String nfcCode) async {
     String qrCodeUrl = "";
     // 1. 先从缓存读取响应内容
     String responseBody = mXcxData[realNumber] ?? "";
@@ -262,7 +264,11 @@ class _MyHomePageState extends State<MyHomePage> {
           mXcxData[realNumber] = responseBody;
 
           // 8. 处理响应结果
-          qrCodeUrl = await xcxProcessResponseDto(realNumber, responseBody,nfcCode);
+          qrCodeUrl = await xcxProcessResponseDto(
+            realNumber,
+            responseBody,
+            nfcCode,
+          );
         } else {
           // 非 2xx 状态码，打印错误
           print("请求失败，状态码：${response.statusCode}");
@@ -287,7 +293,11 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       // 从缓存读取数据，处理响应
       print("读取缓存响应内容：\n$responseBody");
-      qrCodeUrl = await xcxProcessResponseDto(realNumber, responseBody,nfcCode);
+      qrCodeUrl = await xcxProcessResponseDto(
+        realNumber,
+        responseBody,
+        nfcCode,
+      );
     }
     return qrCodeUrl;
   }
@@ -408,56 +418,82 @@ class _MyHomePageState extends State<MyHomePage> {
     return urls;
   }
 
+  static int _lastClickTime = 0;
+  bool _isExecuting = false; // 核心：执行中锁（防止重复触发）
+  // 防抖工具方法（核心：防止连续点击）
+  bool _debounceClick() {
+    const int debounceTime = 500; // 500ms防抖
+    int currentTime = DateTime.now().millisecondsSinceEpoch;
+    if (currentTime - _lastClickTime < debounceTime) {
+      return false; // 点击过快，拒绝执行
+    }
+    _lastClickTime = currentTime;
+    return true;
+  }
+
   Future<void> startRequest() async {
+    // 1. 防抖+执行中锁：防止重复触发
+    if (!_debounceClick() || _isExecuting) {
+      showSnackBar("操作中，请稍后");
+      isStart = false;
+      return;
+    }
+
     final String firstStr = nfcStr;
     if (isStart) {
       isStart = false;
       showSnackBar("正在停止");
+      return;
     } else {
       showSnackBar("已开始");
-      print("clm: ${nfc_number}");
+      _isExecuting = true;
       isStart = true;
       final mixSleepTime = sleepTime > 0 ? sleepTime : 1;
       for (; currentNumber < maxRequestNumber; currentNumber++) {
+        print("循环 isStart: ${isStart}");
+        if (!isStart) {
+          break;
+        }
         nfcStr = nfc_number.toRadixString(16);
         String realNumber = preStr + nfcStr + endStr;
-
-        Map<String, dynamic>? responseData = await checkNfcNumber(realNumber,false);
-        if (responseData != null) {
-          requestCount = 0;
-          String trackingNo = responseData["results"][0]["TrackingNo"];
-          addNewText("查询成功: ${realNumber}, trackingNo: ${trackingNo} ");
-          String qrCode = await xcxProcess(trackingNo,nfcStr);
-          if (qrCode.length > 0) {
-            addNewText("校验成功: ${qrCode}");
-            errCount = 0;
+          Map<String, dynamic>? responseData = await checkNfcNumber(
+            realNumber,
+            false,
+          );
+          if (responseData != null) {
+            requestCount = 0;
+            String trackingNo = responseData["results"][0]["TrackingNo"];
+            addNewText("查询成功: ${realNumber}, trackingNo: ${trackingNo} ");
+            String qrCode = await xcxProcess(trackingNo, nfcStr);
+            if (qrCode.length > 0) {
+              addNewText("校验成功: ${qrCode}");
+              errCount = 0;
+            } else {
+              errCount++;
+              addNewText("校验失败: ${qrCode}");
+              if (errCount > MAX_COUNT) {
+                addNewText("连续校验失败: ${errCount}，已暂停");
+                isStart = false;
+              }
+            }
           } else {
-            errCount++;
-            addNewText("校验失败: ${qrCode}");
-            if (errCount > MAX_COUNT) {
-              addNewText("连续校验失败: ${errCount}，已暂停");
+            requestCount++;
+            addNewText("查询失败: ${realNumber}");
+            if (requestCount > MAX_COUNT) {
+              addNewText("连续查询失败: ${requestCount}，已暂停");
               isStart = false;
             }
           }
-        } else {
-          requestCount++;
-          addNewText("查询失败: ${realNumber}");
-          if (requestCount > MAX_COUNT) {
-            addNewText("连续查询失败: ${requestCount}，已暂停");
-            isStart = false;
-          }
-        }
-        await Future.delayed(Duration(seconds: mixSleepTime));
-        nfc_number--;
-        setState(() {});
         if (!isStart) {
-          isStart = false;
           break;
         } else if (currentNumber != 0 && currentNumber % splitNumber == 0) {
           String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
-          addNewText("保存: $fileName");
+          addNewText("分片保存: $fileName");
           saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
         }
+        setState(() {});
+        await Future.delayed(Duration(seconds: mixSleepTime));
+        nfc_number--;
       }
       if (currentNumber == maxRequestNumber) {
         showSnackBar("已完成");
@@ -467,8 +503,10 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
     addNewText("保存: $fileName");
+    addNewText("当前: $currentNumber");
     saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
     setState(() {});
+    _isExecuting = false;
   }
 
   // 3. 修改功能：弹出输入框修改appName
@@ -614,8 +652,6 @@ class _MyHomePageState extends State<MyHomePage> {
     String tableName,
     List<JsonParseExcelDTO> dtoList,
   ) {
-
-
     dtoList.sort((a, b) {
       // 辅助函数：将SPH字符串转为double，处理空值/非数字
       double _parseSph(String? sphStr) {
@@ -913,14 +949,19 @@ class _MyHomePageState extends State<MyHomePage> {
                     buildEditText(
                       "中间",
                       nfcStr,
-                      (value) => {nfcStr = value , nfc_number = int.parse(nfcStr, radix: 16)},
+                      (value) => {
+                        nfcStr = value,
+                        nfc_number = int.parse(nfcStr, radix: 16),
+                      },
                       isHex: true,
                     ),
                     buildEditText(
                       "中间（10进制）",
                       nfc_number,
-                          (value) => {nfc_number = value , nfcStr = nfc_number.toRadixString(16)}
-
+                      (value) => {
+                        nfc_number = value,
+                        nfcStr = nfc_number.toRadixString(16),
+                      },
                     ),
                     buildEditText("后缀", endStr, (value) => endStr = value),
                   ],
@@ -932,7 +973,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     Text("当前是: " + preStr + nfcStr + endStr),
                     ElevatedButton(
-                      onPressed: () => checkNfcNumber(preStr + nfcStr + endStr,true),
+                      onPressed: () =>
+                          checkNfcNumber(preStr + nfcStr + endStr, true),
                       child: Text("检查当前是否有效"),
                     ),
                   ],
