@@ -145,7 +145,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   /// 修改后：返回解析后的JSON数据（成功返回Map，失败/异常返回null）
-  Future<Map<String, dynamic>?> checkNfcNumber(String nfcNumber) async {
+  Future<Map<String, dynamic>?> checkNfcNumber(String nfcNumber,bool isCheck) async {
     // 1. 正在加载/运行中，返回null并提示
     if (_isLoading) {
       showSnackBar("正在检查请稍等");
@@ -178,7 +178,19 @@ class _MyHomePageState extends State<MyHomePage> {
         // 解析 JSON 并赋值给返回变量
         resultData = json.decode(getResponse.body);
         print("响应内容：\n${getResponse.body}");
-        showSnackBar("请求成功，是有效的");
+        if(isCheck){
+          if (resultData != null) {
+            String trackingNo = resultData["results"][0]["TrackingNo"];
+            if(trackingNo.isNotEmpty){
+              showSnackBar("请求成功${trackingNo}");
+            }else{
+              showSnackBar("失败了,无效的", isError: true);
+            }
+          }else{
+            showSnackBar("失败了,无效的", isError: true);
+          }
+        }
+
       } else {
         print("GET 请求失败，状态码：${getResponse.statusCode}");
         showSnackBar("失败了,无效的", isError: true);
@@ -409,7 +421,7 @@ class _MyHomePageState extends State<MyHomePage> {
         nfcStr = nfc_number.toRadixString(16);
         String realNumber = preStr + nfcStr + endStr;
 
-        Map<String, dynamic>? responseData = await checkNfcNumber(realNumber);
+        Map<String, dynamic>? responseData = await checkNfcNumber(realNumber,false);
         if (responseData != null) {
           requestCount = 0;
           String trackingNo = responseData["results"][0]["TrackingNo"];
@@ -913,7 +925,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: [
                     Text("当前是: " + preStr + nfcStr + endStr),
                     ElevatedButton(
-                      onPressed: () => checkNfcNumber(preStr + nfcStr + endStr),
+                      onPressed: () => checkNfcNumber(preStr + nfcStr + endStr,true),
                       child: Text("检查当前是否有效"),
                     ),
                   ],
