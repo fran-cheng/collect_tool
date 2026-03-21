@@ -71,17 +71,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   static final Map<String, String> mXcxData = {};
 
-  //		1D3A2E29141080
-  // 前缀
-  String preStr = "1D";
   bool _isLoading = false;
-
-  // 后缀
-  String endStr = "29131080";
-
-  //		1D46B129131080
-  int nfc_number = 0x46B1;
-  late String nfcStr = nfc_number.toRadixString(16);
+  // 追踪码
+  int trackingNumber = 116016402182;
 
   // 分割保存的间隔
   int splitNumber = 1000;
@@ -97,8 +89,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   bool isStart = false;
 
-  // 小程序sessionId
-  String sessionId = "486754BB63A64895BF8BB4338CC2D37A";
+  // 小程序token ,openId
+  String token = "5010dda4039cee48ff4f2689c45925f2";
+  String openId = "orY094wjuCOJsoZWSbTguujE1s70";
 
   //  已执行
   int currentNumber = 0;
@@ -145,7 +138,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   /// 修改后：返回解析后的JSON数据（成功返回Map，失败/异常返回null）
-  Future<Map<String, dynamic>?> checkNfcNumber(String nfcNumber) async {
+  Future<Map<String, dynamic>?> checkCodeNumber(int trackingNumber) async {
     // 1. 正在加载/运行中，返回null并提示
     if (_isLoading) {
       showSnackBar("正在检查请稍等");
@@ -153,15 +146,15 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     // 2. 参数不合法，返回null并提示
-    if (nfcNumber.isEmpty) {
-      showSnackBar("参数不合法", isError: true);
-      return null;
-    }
+    // if (codeNumber.isEmpty) {
+    //   showSnackBar("参数不合法", isError: true);
+    //   return null;
+    // }
 
     _isLoading = true;
     Map<String, dynamic>? resultData; // 存储要返回的data
     String url =
-        "https://gc-eoca.essilorchina.com/masterdata/orders?nfc_code=${nfcNumber}&application=nfc_code";
+        "https://gc-eoca.essilorchina.com/masterdata/orders?tracking_number=${trackingNumber}&application=tracking_number";
 
     try {
       // 发送 GET 请求
@@ -198,7 +191,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return resultData;
   }
 
-  Future<String> xcxProcess(String realNumber,String nfcCode) async {
+  Future<String> xcxProcess(String realNumber, int  trackingNumber) async {
     String qrCodeUrl = "";
     // 1. 先从缓存读取响应内容
     String responseBody = mXcxData[realNumber] ?? "";
@@ -214,7 +207,7 @@ class _MyHomePageState extends State<MyHomePage> {
         // 3. 构建请求头（和原 Java/ Dio 版本完全一致）
         final Map<String, String> headers = {
           // 核心鉴权头
-          "sessionId": "${sessionId}",
+          // "sessionId": "${sessionId}",
           // 模拟微信小程序环境的 User-Agent
           "User-Agent":
               "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254162e) XWEB/18163",
@@ -250,7 +243,11 @@ class _MyHomePageState extends State<MyHomePage> {
           mXcxData[realNumber] = responseBody;
 
           // 8. 处理响应结果
-          qrCodeUrl = await xcxProcessResponseDto(realNumber, responseBody,nfcCode);
+          qrCodeUrl = await xcxProcessResponseDto(
+            realNumber,
+            responseBody,
+            nfcCode,
+          );
         } else {
           // 非 2xx 状态码，打印错误
           print("请求失败，状态码：${response.statusCode}");
@@ -275,7 +272,11 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       // 从缓存读取数据，处理响应
       print("读取缓存响应内容：\n$responseBody");
-      qrCodeUrl = await xcxProcessResponseDto(realNumber, responseBody,nfcCode);
+      qrCodeUrl = await xcxProcessResponseDto(
+        realNumber,
+        responseBody,
+        nfcCode,
+      );
     }
     return qrCodeUrl;
   }
@@ -397,7 +398,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> startRequest() async {
-    final String firstStr = nfcStr;
+    final String firstStr = trackingNumber.toString();
     if (isStart) {
       isStart = false;
       showSnackBar("正在停止");
@@ -406,15 +407,13 @@ class _MyHomePageState extends State<MyHomePage> {
       isStart = true;
       final mixSleepTime = sleepTime > 0 ? sleepTime : 1;
       for (; currentNumber < maxRequestNumber; currentNumber++) {
-        nfcStr = nfc_number.toRadixString(16);
-        String realNumber = preStr + nfcStr + endStr;
 
-        Map<String, dynamic>? responseData = await checkNfcNumber(realNumber);
+        Map<String, dynamic>? responseData = await checkCodeNumber(trackingNumber);
         if (responseData != null) {
           requestCount = 0;
           String trackingNo = responseData["results"][0]["TrackingNo"];
-          addNewText("查询成功: ${realNumber}, trackingNo: ${trackingNo} ");
-          String qrCode = await xcxProcess(trackingNo,nfcStr);
+          addNewText("查询成功: ${trackingNumber}, trackingNo: ${trackingNo} ");
+          String qrCode = await xcxProcess(trackingNo, trackingNumber);
           if (qrCode.length > 0) {
             addNewText("校验成功: ${qrCode}");
             errCount = 0;
@@ -601,8 +600,6 @@ class _MyHomePageState extends State<MyHomePage> {
     String tableName,
     List<JsonParseExcelDTO> dtoList,
   ) {
-
-
     dtoList.sort((a, b) {
       // 辅助函数：将SPH字符串转为double，处理空值/非数字
       double _parseSph(String? sphStr) {
@@ -944,11 +941,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: 10,
                   children: [
-                    buildEditText(
-                      "sessionId",
-                      sessionId,
-                      (value) => sessionId = value,
-                    ),
+                    buildEditText("token", token, (value) => token = value),
+                    buildEditText("openId", openId, (value) => openId = value),
                     buildEditText(
                       "保存间隔(每满多少保存一次)",
                       splitNumber,
