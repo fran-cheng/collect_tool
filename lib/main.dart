@@ -916,6 +916,12 @@ class _MyHomePageState extends State<MyHomePage> {
                       (value) => {nfcStr = value , nfc_number = int.parse(nfcStr, radix: 16)},
                       isHex: true,
                     ),
+                    buildEditText(
+                      "中间（10进制）",
+                      nfc_number,
+                          (value) => {nfc_number = value , nfcStr = nfc_number.toRadixString(16)}
+
+                    ),
                     buildEditText("后缀", endStr, (value) => endStr = value),
                   ],
                 ),
