@@ -65,7 +65,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  static int MAX_COUNT = 10;
+  static int MAX_COUNT = 30;
   int errCount = 0;
   int requestCount = 0;
 
@@ -87,7 +87,7 @@ class _MyHomePageState extends State<MyHomePage> {
   int splitNumber = 1000;
 
   // 间隔请求时间
-  int sleepTime = 1;
+  int sleepTime = 3;
 
   // 请求数量
   int maxRequestNumber = 1000;
@@ -145,10 +145,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   /// 修改后：返回解析后的JSON数据（成功返回Map，失败/异常返回null）
-  Future<Map<String, dynamic>?> checkNfcNumber(
-    String nfcNumber,
-    bool isCheck,
-  ) async {
+  Future<Map<String, dynamic>?> checkNfcNumber(String nfcNumber,
+      bool isCheck,) async {
     // 1. 正在加载/运行中，返回null并提示
     if (_isLoading) {
       showSnackBar("正在检查请稍等");
@@ -172,7 +170,7 @@ class _MyHomePageState extends State<MyHomePage> {
         Uri.parse(url),
         headers: {
           "user-agent":
-              "Mozilla/5.0 (iPhone; CPU iPhone OS 6_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/6.0 Mobile/10A5376e Safari/8536.25",
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 6_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/6.0 Mobile/10A5376e Safari/8536.25",
         },
       );
 
@@ -231,10 +229,10 @@ class _MyHomePageState extends State<MyHomePage> {
           "sessionId": "${sessionId}",
           // 模拟微信小程序环境的 User-Agent
           "User-Agent":
-              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254162e) XWEB/18163",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 MicroMessenger/7.0.20.1781(0x6700143B) NetType/WIFI MiniProgramEnv/Windows WindowsWechat/WMPF WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf254162e) XWEB/18163",
           // 来源校验头
           "Referer":
-              "https://servicewechat.com/wxa6cee9315b68fa9b/390/page-frame.html",
+          "https://servicewechat.com/wxa6cee9315b68fa9b/390/page-frame.html",
           // 其他必要请求头
           "Host": "crmprod.essilorluxottica.com.cn",
           "Connection": "keep-alive",
@@ -257,7 +255,8 @@ class _MyHomePageState extends State<MyHomePage> {
         // 5. 检查响应是否成功（状态码 200-299）
         if (response.statusCode >= 200 && response.statusCode < 300) {
           // 6. 读取响应内容（http 库通过 response.body 获取字符串）
-          responseBody = response.body.isNotEmpty ? response.body : "无响应内容";
+          responseBody =
+          response.body.isNotEmpty ? response.body : "无响应内容";
           print("响应内容：\n$responseBody");
 
           // 7. 存入缓存
@@ -302,11 +301,9 @@ class _MyHomePageState extends State<MyHomePage> {
     return qrCodeUrl;
   }
 
-  Future<String> xcxProcessResponseDto(
-    String trackingNo,
-    String responseStr,
-    String nfcCode,
-  ) async {
+  Future<String> xcxProcessResponseDto(String trackingNo,
+      String responseStr,
+      String nfcCode,) async {
     // 防御性判断：DTO 为空或响应字符串为空，直接返回
     String urls = "";
     if (responseStr.isEmpty) {
@@ -381,7 +378,7 @@ class _MyHomePageState extends State<MyHomePage> {
           dto.qrCode = qrcodeRight;
           dto.invoiceDatetime = invoiceDate;
           dto.url =
-              "https://authcode.essilorchina.com/essilornfc/info?nfc_code=$nfcCode";
+          "https://authcode.essilorchina.com/essilornfc/info?nfc_code=$nfcCode";
           dataList_R.add(dto);
           print("右眼星趣控数据已添加：${dto.toString()}");
           urls += dto.url! + "\n";
@@ -401,7 +398,7 @@ class _MyHomePageState extends State<MyHomePage> {
           dto.qrCode = qrcodeLeft;
           dto.invoiceDatetime = invoiceDate;
           dto.url =
-              "https://authcode.essilorchina.com/essilornfc/info?nfc_code=$nfcCode";
+          "https://authcode.essilorchina.com/essilornfc/info?nfc_code=$nfcCode";
           dataList_L.add(dto);
           print("左眼星趣控数据已添加：${dto.toString()}");
           urls += dto.url! + "\n";
@@ -423,7 +420,9 @@ class _MyHomePageState extends State<MyHomePage> {
   // 防抖工具方法（核心：防止连续点击）
   bool _debounceClick() {
     const int debounceTime = 500; // 500ms防抖
-    int currentTime = DateTime.now().millisecondsSinceEpoch;
+    int currentTime = DateTime
+        .now()
+        .millisecondsSinceEpoch;
     if (currentTime - _lastClickTime < debounceTime) {
       return false; // 点击过快，拒绝执行
     }
@@ -436,6 +435,7 @@ class _MyHomePageState extends State<MyHomePage> {
     if (!_debounceClick() || _isExecuting) {
       showSnackBar("操作中，请稍后");
       isStart = false;
+      errCount = 0;
       return;
     }
 
@@ -450,12 +450,13 @@ class _MyHomePageState extends State<MyHomePage> {
       isStart = true;
       final mixSleepTime = sleepTime > 0 ? sleepTime : 1;
       for (; currentNumber < maxRequestNumber; currentNumber++) {
-        print("循环 isStart: ${isStart}");
-        if (!isStart) {
-          break;
-        }
-        nfcStr = nfc_number.toRadixString(16);
-        String realNumber = preStr + nfcStr + endStr;
+        try {
+          print("循环 isStart: ${isStart}");
+          if (!isStart) {
+            break;
+          }
+          nfcStr = nfc_number.toRadixString(16);
+          String realNumber = preStr + nfcStr + endStr;
           Map<String, dynamic>? responseData = await checkNfcNumber(
             realNumber,
             false,
@@ -484,22 +485,31 @@ class _MyHomePageState extends State<MyHomePage> {
               isStart = false;
             }
           }
-        if (!isStart) {
-          break;
-        } else if (currentNumber != 0 && currentNumber % splitNumber == 0) {
-          String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
-          addNewText("分片保存: $fileName");
-          saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
+          if (!isStart) {
+            break;
+          } else if (currentNumber != 0 && currentNumber % splitNumber == 0) {
+            String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
+            addNewText("分片保存: $fileName");
+            saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
+          }
+          setState(() {});
+        }catch(e) {
+          addNewText("请求异常: ${e.toString()}");
+          requestCount++;
+          if (requestCount > MAX_COUNT) {
+            addNewText("连续查询失败: ${requestCount}，已暂停");
+            isStart = false;
+          }
         }
-        setState(() {});
         await Future.delayed(Duration(seconds: mixSleepTime));
         nfc_number--;
+        if (currentNumber == maxRequestNumber) {
+          showSnackBar("已完成");
+          addNewText("已完成");
+          isStart = false;
+        }
       }
-      if (currentNumber == maxRequestNumber) {
-        showSnackBar("已完成");
-        addNewText("已完成");
-        isStart = false;
-      }
+
     }
     String fileName = "$preStr($firstStr-$nfcStr)$endStr.xlsx";
     addNewText("保存: $fileName");
@@ -510,12 +520,10 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   // 3. 修改功能：弹出输入框修改appName
-  void editDate(
-    String tag,
-    dynamic arg,
-    Function(dynamic) onChanged,
-    bool isHex,
-  ) {
+  void editDate(String tag,
+      dynamic arg,
+      Function(dynamic) onChanged,
+      bool isHex,) {
     // 定义输入控制器，默认填充当前appName
     String inputText = arg.toString();
     final TextEditingController controller = TextEditingController(
@@ -524,65 +532,66 @@ class _MyHomePageState extends State<MyHomePage> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text("修改$tag"),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          // 自动聚焦
-          inputFormatters: arg is int
-              ? [FilteringTextInputFormatter.digitsOnly] // 仅数字输入
-              : null,
-          decoration: InputDecoration(
-            hintText: "请输入新的$tag",
-            border: OutlineInputBorder(),
-          ),
-          // 可选：限制输入长度
-          maxLength: 50,
-        ),
-        actions: [
-          // 取消按钮
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("取消"),
-          ),
-          // 确认按钮
-          TextButton(
-            onPressed: () {
-              final String newArg = controller.text.trim();
-              if (newArg.isEmpty) {
-                showSnackBar("$tag不能为空", isError: true);
-                return;
-              }
+      builder: (context) =>
+          AlertDialog(
+            title: Text("修改$tag"),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              // 自动聚焦
+              inputFormatters: arg is int
+                  ? [FilteringTextInputFormatter.digitsOnly] // 仅数字输入
+                  : null,
+              decoration: InputDecoration(
+                hintText: "请输入新的$tag",
+                border: OutlineInputBorder(),
+              ),
+              // 可选：限制输入长度
+              maxLength: 50,
+            ),
+            actions: [
+              // 取消按钮
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("取消"),
+              ),
+              // 确认按钮
+              TextButton(
+                onPressed: () {
+                  final String newArg = controller.text.trim();
+                  if (newArg.isEmpty) {
+                    showSnackBar("$tag不能为空", isError: true);
+                    return;
+                  }
 
-              if (isHex) {
-                if (newArg.length != 4) {
-                  showSnackBar("$tag只能是4个", isError: true);
-                  return;
-                }
-                if (!isHexString(newArg)) {
-                  showSnackBar("$tag 得是16进制格式", isError: true);
-                  return;
-                }
-              }
-              // 更新状态变量（刷新UI）
-              setState(() {
-                if (arg is int) {
-                  // 校验是否为合法数字
-                  final int? numValue = int.tryParse(newArg);
-                  arg = numValue;
-                } else {
-                  arg = newArg;
-                }
-                onChanged(arg);
-              });
-              Navigator.pop(context); // 关闭对话框
-              showSnackBar("修改成功：$newArg");
-            },
-            child: const Text("确认"),
+                  if (isHex) {
+                    if (newArg.length != 4) {
+                      showSnackBar("$tag只能是4个", isError: true);
+                      return;
+                    }
+                    if (!isHexString(newArg)) {
+                      showSnackBar("$tag 得是16进制格式", isError: true);
+                      return;
+                    }
+                  }
+                  // 更新状态变量（刷新UI）
+                  setState(() {
+                    if (arg is int) {
+                      // 校验是否为合法数字
+                      final int? numValue = int.tryParse(newArg);
+                      arg = numValue;
+                    } else {
+                      arg = newArg;
+                    }
+                    onChanged(arg);
+                  });
+                  Navigator.pop(context); // 关闭对话框
+                  showSnackBar("修改成功：$newArg");
+                },
+                child: const Text("确认"),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -600,12 +609,10 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Future<String?> saveDtoToExcel(
-    List<JsonParseExcelDTO> dtoListLift,
-    List<JsonParseExcelDTO> dtoListRight,
-    String saveDir,
-    String fileName,
-  ) async {
+  Future<String?> saveDtoToExcel(List<JsonParseExcelDTO> dtoListLift,
+      List<JsonParseExcelDTO> dtoListRight,
+      String saveDir,
+      String fileName,) async {
     try {
       // 1. 创建 Excel 实例
       final excelLib.Excel excel = excelLib.Excel.createExcel();
@@ -647,11 +654,9 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
-  void saveTable(
-    excelLib.Excel excel,
-    String tableName,
-    List<JsonParseExcelDTO> dtoList,
-  ) {
+  void saveTable(excelLib.Excel excel,
+      String tableName,
+      List<JsonParseExcelDTO> dtoList,) {
     dtoList.sort((a, b) {
       // 辅助函数：将SPH字符串转为double，处理空值/非数字
       double _parseSph(String? sphStr) {
@@ -694,8 +699,8 @@ class _MyHomePageState extends State<MyHomePage> {
     for (int col = 0; col < headers.length; col++) {
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 0),
-          )
+        excelLib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 0),
+      )
           .value = excelLib.TextCellValue(
         headers[col],
       );
@@ -709,111 +714,111 @@ class _MyHomePageState extends State<MyHomePage> {
       // 按 index 填充对应列（和表头一一对应）
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 0,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 0,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.trackingNo ?? "",
       );
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 1,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 1,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.productName ?? "",
       );
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 2,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 2,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.SPH ?? "",
       );
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 3,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 3,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.CYL ?? "",
       );
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 4,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 4,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.AXIS ?? "",
       );
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 5,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 5,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.invoiceDatetime ?? "",
       );
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 6,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 6,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.qrCode ?? "",
       );
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 7,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 7,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.url ?? "",
       );
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 8,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 8,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.eye ?? "",
       );
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 9,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 9,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.scanTimes ?? "",
       );
       sheet
           .cell(
-            excelLib.CellIndex.indexByColumnRow(
-              columnIndex: 10,
-              rowIndex: excelRowIndex,
-            ),
-          )
+        excelLib.CellIndex.indexByColumnRow(
+          columnIndex: 10,
+          rowIndex: excelRowIndex,
+        ),
+      )
           .value = excelLib.TextCellValue(
         dto.productCode ?? "",
       );
@@ -821,8 +826,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Map<String, List<JsonParseExcelDTO>> processDataList(
-    List<JsonParseExcelDTO> dataList,
-  ) {
+      List<JsonParseExcelDTO> dataList,) {
     // Dart中初始化Map，对应Java的HashMap
     Map<String, List<JsonParseExcelDTO>> map = {};
 
@@ -853,11 +857,9 @@ class _MyHomePageState extends State<MyHomePage> {
 
   /// 辅助方法：向Map中添加元素（替代Java的computeIfAbsent）
   /// 如果key不存在则创建空列表，然后添加元素
-  void _addItemToMap(
-    Map<String, List<JsonParseExcelDTO>> map,
-    String key,
-    JsonParseExcelDTO dto,
-  ) {
+  void _addItemToMap(Map<String, List<JsonParseExcelDTO>> map,
+      String key,
+      JsonParseExcelDTO dto,) {
     // 检查key是否存在，不存在则初始化空列表
     if (!map.containsKey(key)) {
       map[key] = [];
@@ -866,13 +868,12 @@ class _MyHomePageState extends State<MyHomePage> {
     map[key]!.add(dto);
   }
 
-  Widget buildEditText(
-    String tag,
-    dynamic arg,
-    Function(dynamic) onChanged, {
-    bool canClick = true,
-    bool isHex = false,
-  }) {
+  Widget buildEditText(String tag,
+      dynamic arg,
+      Function(dynamic) onChanged, {
+        bool canClick = true,
+        bool isHex = false,
+      }) {
     return InkWell(
       onTap: canClick ? () => editDate(tag, arg, onChanged, isHex) : null,
       // 点击修改
@@ -914,7 +915,10 @@ class _MyHomePageState extends State<MyHomePage> {
         // TRY THIS: Try changing the color here to a specific color (to
         // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
         // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: Theme
+            .of(context)
+            .colorScheme
+            .inversePrimary,
         // Here we take the value from the MyHomePage object that was created by
         // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
@@ -949,7 +953,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     buildEditText(
                       "中间",
                       nfcStr,
-                      (value) => {
+                          (value) =>
+                      {
                         nfcStr = value,
                         nfc_number = int.parse(nfcStr, radix: 16),
                       },
@@ -958,7 +963,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     buildEditText(
                       "中间（10进制）",
                       nfc_number,
-                      (value) => {
+                          (value) =>
+                      {
                         nfc_number = value,
                         nfcStr = nfc_number.toRadixString(16),
                       },
@@ -1008,27 +1014,27 @@ class _MyHomePageState extends State<MyHomePage> {
                     buildEditText(
                       "sessionId",
                       sessionId,
-                      (value) => sessionId = value,
+                          (value) => sessionId = value,
                     ),
                     buildEditText(
                       "保存间隔(每满多少保存一次)",
                       splitNumber,
-                      (value) => splitNumber = value,
+                          (value) => splitNumber = value,
                     ),
                     buildEditText(
                       "请求间隔(每次请求间隔，单位秒)",
                       sleepTime,
-                      (value) => sleepTime = value,
+                          (value) => sleepTime = value,
                     ),
                     buildEditText(
                       "数量",
                       maxRequestNumber,
-                      (value) => maxRequestNumber = value,
+                          (value) => maxRequestNumber = value,
                     ),
                     buildEditText(
                       "导出文件路径",
                       saveDirPath,
-                      (value) => saveDirPath = value,
+                          (value) => saveDirPath = value,
                     ),
                   ],
                 ),
