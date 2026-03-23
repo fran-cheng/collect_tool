@@ -358,6 +358,7 @@ class _MyHomePageState extends State<MyHomePage> {
               if (qrCode.length > 0) {
                 addNewText("校验成功: ${qrCode}");
                 if ("true" == qrCode) {
+                  dto.qrCode = qrCode;
                   if (dto.eye == "R") {
                     dataList_R.add(dto);
                   }
@@ -738,17 +739,10 @@ class _MyHomePageState extends State<MyHomePage> {
       // 空值判断（对应Java的 name!=null && !name.isEmpty()）
       if (name != null && name.isNotEmpty) {
         // 分组逻辑（完全对应Java的if-else逻辑）
-        if (name.contains("膜岩")) {
-          if (name.contains("2.0")) {
-            // Dart中替代Java的computeIfAbsent方法
-            _addItemToMap(map, "膜岩2.0", dto);
-          } else {
-            _addItemToMap(map, "膜岩", dto);
-          }
-        } else if (name.contains("膜洁")) {
-          _addItemToMap(map, "膜洁", dto);
-        } else if (name.contains("钻晶A4")) {
-          _addItemToMap(map, "钻晶A4", dto);
+        if (name.contains("2.0")) {
+          _addItemToMap(map, "2.0", dto);
+        } else if (name.contains("3.0")) {
+          _addItemToMap(map, "3.0", dto);
         } else {
           _addItemToMap(map, "其他", dto);
         }
