@@ -81,7 +81,7 @@ class _MyHomePageState extends State<MyHomePage> {
   int splitNumber = 1000;
 
   // 间隔请求时间
-  int sleepTime = 1;
+  int sleepTime = 3;
 
   // 请求数量
   int maxRequestNumber = 1000;
@@ -350,29 +350,38 @@ class _MyHomePageState extends State<MyHomePage> {
           if (responseData != null) {
             requestCount = 0;
             String trackingNo = responseData["results"][0]["TrackingNo"];
+
             List<JsonParseExcelDTO> dtoList = processNk(responseData);
+            String productName =dtoList[0].productName ?? "";
             addNewText(
-                "查询成功: ${trackingNumber}, trackingNo: ${trackingNo} ");
-            for (JsonParseExcelDTO dto in dtoList) {
-              String qrCode = await xcxProcess(trackingNo, trackingNumber, dto);
-              if (qrCode.length > 0) {
-                addNewText("校验成功: ${qrCode}");
-                if ("true" == qrCode) {
-                  dto.qrCode = qrCode;
-                  if (dto.eye == "R") {
-                    dataList_R.add(dto);
+              "查询成功: ${trackingNumber}, trackingNo: ${trackingNo}, product:$productName ",
+            );
+            if (productName.contains("控优点")) {
+              for (JsonParseExcelDTO dto in dtoList) {
+                String qrCode = await xcxProcess(
+                  trackingNo,
+                  trackingNumber,
+                  dto,
+                );
+                if (qrCode.length > 0) {
+                  addNewText("校验成功: ${qrCode}");
+                  if ("true" == qrCode) {
+                    dto.qrCode = qrCode;
+                    if (dto.eye == "R") {
+                      dataList_R.add(dto);
+                    }
+                    if (dto.eye == "L") {
+                      dataList_L.add(dto);
+                    }
                   }
-                  if (dto.eye == "L") {
-                    dataList_L.add(dto);
+                  errCount = 0;
+                } else {
+                  errCount++;
+                  addNewText("校验失败: ${qrCode}");
+                  if (errCount > MAX_COUNT) {
+                    addNewText("连续校验失败: ${errCount}，已暂停");
+                    isStart = false;
                   }
-                }
-                errCount = 0;
-              } else {
-                errCount++;
-                addNewText("校验失败: ${qrCode}");
-                if (errCount > MAX_COUNT) {
-                  addNewText("连续校验失败: ${errCount}，已暂停");
-                  isStart = false;
                 }
               }
             }
