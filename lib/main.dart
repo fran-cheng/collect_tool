@@ -106,12 +106,12 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // 🔴 核心方法：添加新文本，自动维护列表长度为10条
   void addNewText(String newText) {
-    WindowsLogUtil.log(newText);
+    print(newText);
     setState(() {
       // 1. 新增文本插入到列表末尾（最新的在最下面）
       _textList.add(newText);
-      // 2. 如果超过10条，移除最旧的那条（列表开头的第一条）
-      if (_textList.length > 10) {
+      // 2. 如果超过6条，移除最旧的那条（列表开头的第一条）
+      if (_textList.length > 6) {
         _textList.removeAt(0); // 移除索引为0的元素（最旧）
       }
     });
@@ -130,11 +130,11 @@ class _MyHomePageState extends State<MyHomePage> {
     // 3. 拼接应用目录下的temp子目录路径
     String appTempDirPath = path.join(exeDir, "temp");
     Directory appTempDir = Directory(appTempDirPath);
-    WindowsLogUtil.init( exeDir: exeDir);
+    WindowsLogUtil.init(exeDir: exeDir);
     // 4. 如果temp目录不存在，自动创建
     if (!await appTempDir.exists()) {
       await appTempDir.create(recursive: true);
-      WindowsLogUtil.log("应用temp目录已创建：$appTempDirPath");
+      print("应用temp目录已创建：$appTempDirPath");
     }
     saveDirPath = appTempDirPath;
   }
@@ -185,13 +185,13 @@ class _MyHomePageState extends State<MyHomePage> {
           }
         }
       } else {
-        WindowsLogUtil.log("GET 请求失败，状态码：${getResponse.statusCode}");
+        print("GET 请求失败，状态码：${getResponse.statusCode}");
         showSnackBar("失败了,无效的", isError: true);
         resultData = null; // 状态码非200返回null
       }
     } catch (e) {
       // 捕获网络异常，返回null
-      WindowsLogUtil.log("网络请求异常：$e");
+      print("网络请求异常：$e");
       showSnackBar("失败了", isError: true);
       resultData = null;
     } finally {
@@ -217,7 +217,7 @@ class _MyHomePageState extends State<MyHomePage> {
       final String targetUrlStr =
           "https://nkyj.wshendu.com/index.php?s=/api/peace/data_verification";
       final Uri targetUrl = Uri.parse(targetUrlStr);
-      WindowsLogUtil.log("xcxProcess url : $targetUrlStr");
+      print("xcxProcess url : $targetUrlStr");
 
       try {
         // 2. 构建请求头（和原 Java 版本完全一致）
@@ -276,7 +276,7 @@ class _MyHomePageState extends State<MyHomePage> {
           // );
         } else {
           // 非 2xx 状态码，打印错误
-          WindowsLogUtil.log("请求失败，状态码：${response.statusCode}");
+          print("请求失败，状态码：${response.statusCode}");
           final String errorBody = response.body.isNotEmpty
               ? response.body
               : "无错误内容";
@@ -285,16 +285,16 @@ class _MyHomePageState extends State<MyHomePage> {
         }
       } on SocketException catch (e) {
         // 捕获网络连接异常（如无网络、连接超时）
-        WindowsLogUtil.log("网络连接异常：${e.message}");
+        print("网络连接异常：${e.message}");
       } on HttpException catch (e) {
         // 捕获 HTTP 协议异常
-        WindowsLogUtil.log("HTTP 协议异常：${e.message}");
+        print("HTTP 协议异常：${e.message}");
       } on FormatException catch (e) {
         // 捕获响应格式异常（如 JSON 解析失败）
-        WindowsLogUtil.log("响应格式异常：${e.message}");
+        print("响应格式异常：${e.message}");
       } catch (e) {
         // 捕获其他未知异常
-        WindowsLogUtil.log("请求异常：$e");
+        print("请求异常：$e");
       }
     } else {
       // 从缓存读取数据，处理响应
@@ -308,8 +308,28 @@ class _MyHomePageState extends State<MyHomePage> {
     return qrCodeUrl;
   }
 
+  static int _lastClickTime = 0;
+  bool _isExecuting = false; // 核心：执行中锁（防止重复触发）
+  // 防抖工具方法（核心：防止连续点击）
+  bool _debounceClick() {
+    const int debounceTime = 500; // 500ms防抖
+    int currentTime = DateTime.now().millisecondsSinceEpoch;
+    if (currentTime - _lastClickTime < debounceTime) {
+      return false; // 点击过快，拒绝执行
+    }
+    _lastClickTime = currentTime;
+    return true;
+  }
+
   Future<void> startRequest() async {
     final String firstStr = trackingNumber.toString();
+    // 1. 防抖+执行中锁：防止重复触发
+    if (!_debounceClick() || _isExecuting) {
+      showSnackBar("操作中，请稍后");
+      isStart = false;
+      errCount = 0;
+      return;
+    }
     if (isStart) {
       isStart = false;
       showSnackBar("正在停止");
@@ -318,40 +338,63 @@ class _MyHomePageState extends State<MyHomePage> {
       isStart = true;
       final mixSleepTime = sleepTime > 0 ? sleepTime : 1;
       for (; currentNumber < maxRequestNumber; currentNumber++) {
-        Map<String, dynamic>? responseData = await checkCodeNumber(
-          trackingNumber,
-          false,
-        );
-        if (responseData != null) {
-          requestCount = 0;
-          String trackingNo = responseData["results"][0]["TrackingNo"];
-          List<JsonParseExcelDTO> dtoList = processNk(responseData);
-          addNewText("查询成功: ${trackingNumber}, trackingNo: ${trackingNo} ");
-          for (JsonParseExcelDTO dto in dtoList) {
-            String qrCode = await xcxProcess(trackingNo, trackingNumber, dto);
-            if (qrCode.length > 0) {
-              addNewText("校验成功: ${qrCode}");
-              if ("true" == qrCode) {
-                if (dto.eye == "R") {
-                  dataList_R.add(dto);
+        try {
+          print("循环 isStart: ${isStart}");
+          if (!isStart) {
+            break;
+          }
+          Map<String, dynamic>? responseData = await checkCodeNumber(
+            trackingNumber,
+            false,
+          );
+          if (responseData != null) {
+            requestCount = 0;
+            String trackingNo = responseData["results"][0]["TrackingNo"];
+            List<JsonParseExcelDTO> dtoList = processNk(responseData);
+            addNewText(
+                "查询成功: ${trackingNumber}, trackingNo: ${trackingNo} ");
+            for (JsonParseExcelDTO dto in dtoList) {
+              String qrCode = await xcxProcess(trackingNo, trackingNumber, dto);
+              if (qrCode.length > 0) {
+                addNewText("校验成功: ${qrCode}");
+                if ("true" == qrCode) {
+                  if (dto.eye == "R") {
+                    dataList_R.add(dto);
+                  }
+                  if (dto.eye == "L") {
+                    dataList_L.add(dto);
+                  }
                 }
-                if (dto.eye == "L") {
-                  dataList_L.add(dto);
+                errCount = 0;
+              } else {
+                errCount++;
+                addNewText("校验失败: ${qrCode}");
+                if (errCount > MAX_COUNT) {
+                  addNewText("连续校验失败: ${errCount}，已暂停");
+                  isStart = false;
                 }
-              }
-              errCount = 0;
-            } else {
-              errCount++;
-              addNewText("校验失败: ${qrCode}");
-              if (errCount > MAX_COUNT) {
-                addNewText("连续校验失败: ${errCount}，已暂停");
-                isStart = false;
               }
             }
+          } else {
+            requestCount++;
+            addNewText("查询失败: ${trackingNumber}");
+            if (requestCount > MAX_COUNT) {
+              addNewText("连续查询失败: ${requestCount}，已暂停");
+              isStart = false;
+            }
           }
-        } else {
+          if (!isStart) {
+            isStart = false;
+            break;
+          } else if (currentNumber != 0 && currentNumber % splitNumber == 0) {
+            String fileName = "$firstStr-$trackingNumber.xlsx";
+            addNewText("保存: $fileName");
+            saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
+          }
+          setState(() {});
+        } catch (e) {
+          addNewText("请求异常: ${e.toString()}");
           requestCount++;
-          addNewText("查询失败: ${trackingNumber}");
           if (requestCount > MAX_COUNT) {
             addNewText("连续查询失败: ${requestCount}，已暂停");
             isStart = false;
@@ -359,20 +402,11 @@ class _MyHomePageState extends State<MyHomePage> {
         }
         await Future.delayed(Duration(seconds: mixSleepTime));
         trackingNumber--;
-        setState(() {});
-        if (!isStart) {
+        if (currentNumber == maxRequestNumber) {
+          showSnackBar("已完成");
+          addNewText("已完成");
           isStart = false;
-          break;
-        } else if (currentNumber != 0 && currentNumber % splitNumber == 0) {
-          String fileName = "$firstStr-$trackingNumber.xlsx";
-          addNewText("保存: $fileName");
-          saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
         }
-      }
-      if (currentNumber == maxRequestNumber) {
-        showSnackBar("已完成");
-        addNewText("已完成");
-        isStart = false;
       }
     }
     String fileName = "$firstStr-$trackingNumber.xlsx";
@@ -511,10 +545,10 @@ class _MyHomePageState extends State<MyHomePage> {
       File file = File(savePath);
       await file.writeAsBytes(excel.save()!);
 
-      WindowsLogUtil.log("Excel 保存成功：$savePath");
+      print("Excel 保存成功：$savePath");
       return savePath;
     } catch (e) {
-      WindowsLogUtil.log("Excel 保存失败：$e");
+      print("Excel 保存失败：$e");
       return null;
     }
   }
