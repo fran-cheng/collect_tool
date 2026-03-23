@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:collect_tool/WindowsLogUtil.dart';
 import 'package:excel/excel.dart' as excelLib;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -41,7 +42,7 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const MyHomePage(title: 'YSL 数据查询'),
+      home: const MyHomePage(title: 'NK 数据查询'),
     );
   }
 }
@@ -105,7 +106,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   // 🔴 核心方法：添加新文本，自动维护列表长度为10条
   void addNewText(String newText) {
-    print(newText);
+    WindowsLogUtil.log(newText);
     setState(() {
       // 1. 新增文本插入到列表末尾（最新的在最下面）
       _textList.add(newText);
@@ -129,11 +130,11 @@ class _MyHomePageState extends State<MyHomePage> {
     // 3. 拼接应用目录下的temp子目录路径
     String appTempDirPath = path.join(exeDir, "temp");
     Directory appTempDir = Directory(appTempDirPath);
-
+    WindowsLogUtil.init( exeDir: exeDir);
     // 4. 如果temp目录不存在，自动创建
     if (!await appTempDir.exists()) {
       await appTempDir.create(recursive: true);
-      print("应用temp目录已创建：$appTempDirPath");
+      WindowsLogUtil.log("应用temp目录已创建：$appTempDirPath");
     }
     saveDirPath = appTempDirPath;
   }
@@ -174,7 +175,7 @@ class _MyHomePageState extends State<MyHomePage> {
       if (getResponse.statusCode == 200) {
         // 解析 JSON 并赋值给返回变量
         resultData = json.decode(getResponse.body);
-        print("响应内容：\n${getResponse.body}");
+        WindowsLogUtil.log("响应内容：\n${getResponse.body}");
         if (isCheck) {
           if (resultData != null) {
             String trackingNo = resultData["results"][0]["TrackingNo"];
@@ -184,13 +185,13 @@ class _MyHomePageState extends State<MyHomePage> {
           }
         }
       } else {
-        print("GET 请求失败，状态码：${getResponse.statusCode}");
+        WindowsLogUtil.log("GET 请求失败，状态码：${getResponse.statusCode}");
         showSnackBar("失败了,无效的", isError: true);
         resultData = null; // 状态码非200返回null
       }
     } catch (e) {
       // 捕获网络异常，返回null
-      print("网络请求异常：$e");
+      WindowsLogUtil.log("网络请求异常：$e");
       showSnackBar("失败了", isError: true);
       resultData = null;
     } finally {
@@ -216,7 +217,7 @@ class _MyHomePageState extends State<MyHomePage> {
       final String targetUrlStr =
           "https://nkyj.wshendu.com/index.php?s=/api/peace/data_verification";
       final Uri targetUrl = Uri.parse(targetUrlStr);
-      print("xcxProcess url : $targetUrlStr");
+      WindowsLogUtil.log("xcxProcess url : $targetUrlStr");
 
       try {
         // 2. 构建请求头（和原 Java 版本完全一致）
@@ -258,7 +259,7 @@ class _MyHomePageState extends State<MyHomePage> {
         if (response.statusCode >= 200 && response.statusCode < 300) {
           // 6. 读取响应内容（http 库通过 response.body 获取字符串）
           responseBody = response.body.isNotEmpty ? response.body : "无响应内容";
-          print("响应内容：\n$responseBody");
+          WindowsLogUtil.log("响应内容：\n$responseBody");
 
           // 7. 存入缓存
           mXcxData[realNumber] = responseBody;
@@ -275,29 +276,29 @@ class _MyHomePageState extends State<MyHomePage> {
           // );
         } else {
           // 非 2xx 状态码，打印错误
-          print("请求失败，状态码：${response.statusCode}");
+          WindowsLogUtil.log("请求失败，状态码：${response.statusCode}");
           final String errorBody = response.body.isNotEmpty
               ? response.body
               : "无错误内容";
-          print("错误响应内容：$errorBody");
+          WindowsLogUtil.log("错误响应内容：$errorBody");
           qrCodeUrl = "false";
         }
       } on SocketException catch (e) {
         // 捕获网络连接异常（如无网络、连接超时）
-        print("网络连接异常：${e.message}");
+        WindowsLogUtil.log("网络连接异常：${e.message}");
       } on HttpException catch (e) {
         // 捕获 HTTP 协议异常
-        print("HTTP 协议异常：${e.message}");
+        WindowsLogUtil.log("HTTP 协议异常：${e.message}");
       } on FormatException catch (e) {
         // 捕获响应格式异常（如 JSON 解析失败）
-        print("响应格式异常：${e.message}");
+        WindowsLogUtil.log("响应格式异常：${e.message}");
       } catch (e) {
         // 捕获其他未知异常
-        print("请求异常：$e");
+        WindowsLogUtil.log("请求异常：$e");
       }
     } else {
       // 从缓存读取数据，处理响应
-      print("读取缓存响应内容：\n$responseBody");
+      WindowsLogUtil.log("读取缓存响应内容：\n$responseBody");
       if (responseBody.contains("验证失败") || responseBody.contains("已激活")) {
         qrCodeUrl = "false";
       } else {
@@ -510,10 +511,10 @@ class _MyHomePageState extends State<MyHomePage> {
       File file = File(savePath);
       await file.writeAsBytes(excel.save()!);
 
-      print("Excel 保存成功：$savePath");
+      WindowsLogUtil.log("Excel 保存成功：$savePath");
       return savePath;
     } catch (e) {
-      print("Excel 保存失败：$e");
+      WindowsLogUtil.log("Excel 保存失败：$e");
       return null;
     }
   }
