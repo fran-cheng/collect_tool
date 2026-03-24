@@ -15,6 +15,7 @@ void main() {
 
 final List<JsonParseExcelDTO> dataList_R = []; // 右眼数据列表
 final List<JsonParseExcelDTO> dataList_L = []; // 左眼数据列表
+final Map<String, JsonParseExcelDTO> dataMap_R = {}; // 左眼数据列表
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -352,7 +353,7 @@ class _MyHomePageState extends State<MyHomePage> {
             String trackingNo = responseData["results"][0]["TrackingNo"];
 
             List<JsonParseExcelDTO> dtoList = processNk(responseData);
-            String productName =dtoList[0].productName ?? "";
+            String productName = dtoList[0].productName ?? "";
             addNewText(
               "查询成功: ${trackingNumber}, trackingNo: ${trackingNo}, product:$productName ",
             );
@@ -369,6 +370,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     dto.qrCode = qrCode;
                     if (dto.eye == "R") {
                       dataList_R.add(dto);
+                      dataMap_R[trackingNo] = dto;
                     }
                     if (dto.eye == "L") {
                       dataList_L.add(dto);
@@ -399,7 +401,13 @@ class _MyHomePageState extends State<MyHomePage> {
           } else if (currentNumber != 0 && currentNumber % splitNumber == 0) {
             String fileName = "$firstStr-$trackingNumber.xlsx";
             addNewText("保存: $fileName");
-            saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
+            saveDtoToExcel(
+              dataList_L,
+              dataList_R,
+              dataMap_R,
+              saveDirPath,
+              fileName,
+            );
           }
           setState(() {});
         } catch (e) {
@@ -421,7 +429,7 @@ class _MyHomePageState extends State<MyHomePage> {
     }
     String fileName = "$firstStr-$trackingNumber.xlsx";
     addNewText("保存: $fileName");
-    saveDtoToExcel(dataList_L, dataList_R, saveDirPath, fileName);
+    saveDtoToExcel(dataList_L, dataList_R, dataMap_R, saveDirPath, fileName);
     setState(() {});
   }
 
@@ -519,13 +527,14 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<String?> saveDtoToExcel(
     List<JsonParseExcelDTO> dtoListLift,
     List<JsonParseExcelDTO> dtoListRight,
+    Map<String, JsonParseExcelDTO> dataMapR,
     String saveDir,
     String fileName,
   ) async {
     try {
       // 1. 创建 Excel 实例
       final excelLib.Excel excel = excelLib.Excel.createExcel();
-      excel.delete('Sheet1');
+
       Map<String, List<JsonParseExcelDTO>> liftMap = processDataList(
         dtoListLift,
       );
@@ -537,20 +546,20 @@ class _MyHomePageState extends State<MyHomePage> {
         List<JsonParseExcelDTO>? dtoList = liftMap[name];
         if (dtoList != null) {
           String tableName = "左眼${name}";
-          saveTable(excel, tableName, dtoList);
+          saveTable2(excel, tableName, dtoList, dataMapR);
         }
       }
       for (String name in rightMap.keys) {
         List<JsonParseExcelDTO>? dtoList = liftMap[name];
         if (dtoList != null) {
           String tableName = "右眼${name}";
-          saveTable(excel, tableName, dtoList);
+          saveTable(excel, tableName, dtoList, dataMapR);
         }
       }
 
       // 5. 获取本地存储路径（跨平台适配）
       String savePath = path.join(saveDir, fileName);
-
+      excel.delete('Sheet1');
       // 6. 将 Excel 写入文件
       File file = File(savePath);
       await file.writeAsBytes(excel.save()!);
@@ -563,10 +572,299 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  void saveTable2(
+    excelLib.Excel excel,
+    String tableName,
+    List<JsonParseExcelDTO> dtoList,
+    Map<String, JsonParseExcelDTO> rightMap,
+  ) {
+    dtoList.sort((a, b) {
+      // 辅助函数：将SPH字符串转为double，处理空值/非数字
+      double _parseSph(String? sphStr) {
+        if (sphStr == null || sphStr.isEmpty) {
+          return double.maxFinite; // 空值设为极大值，排到最后
+        }
+        try {
+          return double.parse(sphStr); // 转成数值
+        } catch (e) {
+          return double.maxFinite; // 非数字也设为极大值，排到最后
+        }
+      }
+
+      // 获取a和b的SPH数值
+      double sphA = _parseSph(a.SPH);
+      double sphB = _parseSph(b.SPH);
+
+      // 从小到大排序
+      return sphA.compareTo(sphB);
+    });
+
+    // 2. 创建工作表（名称："镜片数据"）
+    final excelLib.Sheet sheet = excel[tableName];
+
+    // 3. 设置 Excel 表头（严格对齐 DTO 字段的 index）
+    final List<String> headers = [
+      '追踪码', // index0
+      '产品名', // index1
+      '球镜', // index2
+      '柱镜', // index3
+      'AXIS', // index4
+      '生产时间', // index5
+      '防伪码', // index6
+      '详情链接', // index7
+      '眼睛位置', // index8
+      '扫描次数', // index9
+      '产品编码', // index10
+      '产品名', // index11
+      '球镜', // index12
+      '柱镜', // index13
+      'AXIS', // index14
+      '生产时间', // index15
+      '防伪码', // index16
+      '详情链接', // index17
+      '眼睛位置', // index18
+      '扫描次数', // index19
+      '产品编码', // index20
+    ];
+    // 将表头写入第一行（行索引 0）
+    for (int col = 0; col < headers.length; col++) {
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(columnIndex: col, rowIndex: 0),
+          )
+          .value = excelLib.TextCellValue(
+        headers[col],
+      );
+    }
+
+    // 4. 遍历 DTO 列表，填充数据（从第二行开始，行索引 1）
+    for (int row = 0; row < dtoList.length; row++) {
+      JsonParseExcelDTO dto = dtoList[row];
+      JsonParseExcelDTO? dtoR = rightMap[dto.trackingNo];
+      int excelRowIndex = row + 1; // 跳过表头行
+
+      // 按 index 填充对应列（和表头一一对应）
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 0,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.trackingNo ?? "",
+      );
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 1,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.productName ?? "",
+      );
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 2,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.SPH ?? "",
+      );
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 3,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.CYL ?? "",
+      );
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 4,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.AXIS ?? "",
+      );
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 5,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.invoiceDatetime ?? "",
+      );
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 6,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.qrCode ?? "",
+      );
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 7,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.url ?? "",
+      );
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 8,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.eye ?? "",
+      );
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 9,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.scanTimes ?? "",
+      );
+      sheet
+          .cell(
+            excelLib.CellIndex.indexByColumnRow(
+              columnIndex: 10,
+              rowIndex: excelRowIndex,
+            ),
+          )
+          .value = excelLib.TextCellValue(
+        dto.productCode ?? "",
+      );
+
+      if (dtoR != null) {
+        sheet
+            .cell(
+              excelLib.CellIndex.indexByColumnRow(
+                columnIndex: 11,
+                rowIndex: excelRowIndex,
+              ),
+            )
+            .value = excelLib.TextCellValue(
+          dtoR.productName ?? "",
+        );
+        sheet
+            .cell(
+              excelLib.CellIndex.indexByColumnRow(
+                columnIndex: 12,
+                rowIndex: excelRowIndex,
+              ),
+            )
+            .value = excelLib.TextCellValue(
+          dtoR.SPH ?? "",
+        );
+        sheet
+            .cell(
+              excelLib.CellIndex.indexByColumnRow(
+                columnIndex: 13,
+                rowIndex: excelRowIndex,
+              ),
+            )
+            .value = excelLib.TextCellValue(
+          dtoR.CYL ?? "",
+        );
+        sheet
+            .cell(
+              excelLib.CellIndex.indexByColumnRow(
+                columnIndex: 14,
+                rowIndex: excelRowIndex,
+              ),
+            )
+            .value = excelLib.TextCellValue(
+          dtoR.AXIS ?? "",
+        );
+        sheet
+            .cell(
+              excelLib.CellIndex.indexByColumnRow(
+                columnIndex: 15,
+                rowIndex: excelRowIndex,
+              ),
+            )
+            .value = excelLib.TextCellValue(
+          dtoR.invoiceDatetime ?? "",
+        );
+        sheet
+            .cell(
+              excelLib.CellIndex.indexByColumnRow(
+                columnIndex: 16,
+                rowIndex: excelRowIndex,
+              ),
+            )
+            .value = excelLib.TextCellValue(
+          dtoR.qrCode ?? "",
+        );
+        sheet
+            .cell(
+              excelLib.CellIndex.indexByColumnRow(
+                columnIndex: 17,
+                rowIndex: excelRowIndex,
+              ),
+            )
+            .value = excelLib.TextCellValue(
+          dtoR.url ?? "",
+        );
+        sheet
+            .cell(
+              excelLib.CellIndex.indexByColumnRow(
+                columnIndex: 18,
+                rowIndex: excelRowIndex,
+              ),
+            )
+            .value = excelLib.TextCellValue(
+          dtoR.eye ?? "",
+        );
+        sheet
+            .cell(
+              excelLib.CellIndex.indexByColumnRow(
+                columnIndex: 19,
+                rowIndex: excelRowIndex,
+              ),
+            )
+            .value = excelLib.TextCellValue(
+          dtoR.scanTimes ?? "",
+        );
+        sheet
+            .cell(
+              excelLib.CellIndex.indexByColumnRow(
+                columnIndex: 20,
+                rowIndex: excelRowIndex,
+              ),
+            )
+            .value = excelLib.TextCellValue(
+          dtoR.productCode ?? "",
+        );
+      }
+    }
+  }
+
   void saveTable(
     excelLib.Excel excel,
     String tableName,
     List<JsonParseExcelDTO> dtoList,
+    Map<String, JsonParseExcelDTO> dataMapR,
   ) {
     dtoList.sort((a, b) {
       // 辅助函数：将SPH字符串转为double，处理空值/非数字
@@ -621,6 +919,10 @@ class _MyHomePageState extends State<MyHomePage> {
     for (int row = 0; row < dtoList.length; row++) {
       JsonParseExcelDTO dto = dtoList[row];
       int excelRowIndex = row + 1; // 跳过表头行
+
+      if (dataMapR.containsKey(dto.trackingNo)) {
+        continue;
+      }
 
       // 按 index 填充对应列（和表头一一对应）
       sheet
