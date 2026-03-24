@@ -324,6 +324,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> startRequest() async {
     final String firstStr = trackingNumber.toString();
+
     // 1. 防抖+执行中锁：防止重复触发
     if (!_debounceClick() || _isExecuting) {
       showSnackBar("操作中，请稍后");
@@ -331,23 +332,28 @@ class _MyHomePageState extends State<MyHomePage> {
       errCount = 0;
       return;
     }
+
     if (isStart) {
       isStart = false;
       showSnackBar("正在停止");
+      setState(() {});
     } else {
       showSnackBar("已开始");
       isStart = true;
       final mixSleepTime = sleepTime > 0 ? sleepTime : 1;
+
       for (; currentNumber < maxRequestNumber; currentNumber++) {
         try {
           print("循环 isStart: ${isStart}");
           if (!isStart) {
             break;
           }
+
           Map<String, dynamic>? responseData = await checkCodeNumber(
             trackingNumber,
             false,
           );
+
           if (responseData != null) {
             requestCount = 0;
             String trackingNo = responseData["results"][0]["TrackingNo"];
@@ -357,6 +363,7 @@ class _MyHomePageState extends State<MyHomePage> {
             addNewText(
               "查询成功: ${trackingNumber}, trackingNo: ${trackingNo}, product:$productName ",
             );
+
             if (productName.contains("控优点")) {
               for (JsonParseExcelDTO dto in dtoList) {
                 String qrCode = await xcxProcess(
@@ -364,9 +371,10 @@ class _MyHomePageState extends State<MyHomePage> {
                   trackingNumber,
                   dto,
                 );
-                if (qrCode.length > 0) {
+
+                if (qrCode.isNotEmpty) {
                   addNewText("校验成功: ${qrCode}");
-                  if ("true" == qrCode) {
+                  if (qrCode == "true") {
                     dto.qrCode = qrCode;
                     if (dto.eye == "R") {
                       dataList_R.add(dto);
@@ -395,12 +403,15 @@ class _MyHomePageState extends State<MyHomePage> {
               isStart = false;
             }
           }
+
           if (!isStart) {
-            isStart = false;
             break;
-          } else if (currentNumber != 0 && currentNumber % splitNumber == 0) {
+          }
+
+          // 分段保存（保留你原来的自动分段保存）
+          if (currentNumber != 0 && currentNumber % splitNumber == 0) {
             String fileName = "$firstStr-$trackingNumber.xlsx";
-            addNewText("保存: $fileName");
+            addNewText("分段保存: $fileName");
             saveDtoToExcel(
               dataList_L,
               dataList_R,
@@ -409,6 +420,7 @@ class _MyHomePageState extends State<MyHomePage> {
               fileName,
             );
           }
+
           setState(() {});
         } catch (e) {
           addNewText("请求异常: ${e.toString()}");
@@ -418,19 +430,25 @@ class _MyHomePageState extends State<MyHomePage> {
             isStart = false;
           }
         }
+
         await Future.delayed(Duration(seconds: mixSleepTime));
         trackingNumber--;
-        if (currentNumber == maxRequestNumber) {
+
+        // 全部完成
+        if (currentNumber == maxRequestNumber - 1) {
           showSnackBar("已完成");
           addNewText("已完成");
           isStart = false;
         }
       }
+
+      // 循环结束后只保存一次（正常结束/异常结束/暂停结束）
+      // 只在这里保存一次！！！
+      String fileName = "$firstStr-$trackingNumber.xlsx";
+      addNewText("保存: $fileName");
+      saveDtoToExcel(dataList_L, dataList_R, dataMap_R, saveDirPath, fileName);
+      setState(() {});
     }
-    String fileName = "$firstStr-$trackingNumber.xlsx";
-    addNewText("保存: $fileName");
-    saveDtoToExcel(dataList_L, dataList_R, dataMap_R, saveDirPath, fileName);
-    setState(() {});
   }
 
   // 3. 修改功能：弹出输入框修改appName
